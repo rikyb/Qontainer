@@ -34,17 +34,17 @@ void Printer::set_Colors(bool C)
     Colors=C;
 }
 
-void Printer::set_Type(QString& T)
+void Printer::set_Type(QString T)
 {
     Type=T;
 }
 
-void Printer::set_Print_format(QString& F)
+void Printer::set_Print_format(QString F)
 {
     Print_format=F;
 }
 
-void Printer::set_Page_min(unsigned int& P){
+void Printer::set_Page_min(unsigned int P){
     Page_min=P;
 }
 
@@ -53,12 +53,12 @@ Printer* Printer::clone() const{
     return new Printer(*this);
 }
 
-unsigned int Printer::sconto(){
-    return 22;                  //test
+void Printer::sconto(float less){
+    set_Prezzo(get_Prezzo()*((100-less)/100));
 }
 
-unsigned int Printer::estendi_garanzia(){
-    return 6;                   //test
+void Printer::estendi_garanzia(unsigned int warranty){
+    set_Garanzia(get_Garanzia()+warranty);                    //test
 }
 
 /*

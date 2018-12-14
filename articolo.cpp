@@ -23,7 +23,7 @@ QString Articolo::get_Nome() const{
     return Nome;
 }
 
-unsigned int Articolo::get_Prezzo() const{
+float Articolo::get_Prezzo() const{
     return Prezzo;
 }
 
@@ -40,27 +40,27 @@ unsigned int Articolo::get_Garanzia() const{
 }
 
 //setter
-void Articolo::set_Marca(QString& M){
+void Articolo::set_Marca(QString M){
     Marca=M;
 }
 
-void Articolo::set_Nome(QString& N){
+void Articolo::set_Nome(QString N){
     Nome=N;
 }
 
-void Articolo::set_Prezzo(unsigned int& P){
+void Articolo::set_Prezzo(float P){
     Prezzo=P;
 }
 
-void Articolo::set_Data_uscita(QDate& D){
+void Articolo::set_Data_uscita(QDate D){
     Data_uscita=D;
 }
 
-void Articolo::set_Quantita(unsigned int& Q){
+void Articolo::set_Quantita(unsigned int Q){
     Quantita=Q;
 }
 
-void Articolo::set_Garanzia(unsigned int& G){
+void Articolo::set_Garanzia(unsigned int G){
     Garanzia=G;
 }
 

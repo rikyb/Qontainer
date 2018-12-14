@@ -18,10 +18,12 @@ SOURCES += main.cpp\
     articolo.cpp \
     apparecchio.cpp \
     printer.cpp \
-    smartphone.cpp
+    smartphone.cpp \
+    computer.cpp
 
 HEADERS  += mainwindow.h \
     articolo.h \
     apparecchio.h \
     printer.h \
-    smartphone.h
+    smartphone.h \
+    computer.h

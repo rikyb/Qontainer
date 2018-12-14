@@ -25,11 +25,11 @@ public:
     unsigned int get_Ram()const;
     unsigned int get_Memoria_archiviazione()const;
 
-    void set_CPU(QString&);
-    void set_GPU(QString&);
-    void set_Operating_system(QString&);
-    void set_Ram(unsigned int&);
-    void set_Memoria_archiviazione(unsigned int&);
+    void set_CPU(QString);
+    void set_GPU(QString);
+    void set_Operating_system(QString);
+    void set_Ram(unsigned int);
+    void set_Memoria_archiviazione(unsigned int);
 
 };
 

@@ -24,13 +24,13 @@ public:
     unsigned int get_Page_min() const;
 
     void set_Colors(bool);
-    void set_Type(QString&);
-    void set_Print_format(QString&);
-    void set_Page_min(unsigned int&);
+    void set_Type(QString);
+    void set_Print_format(QString);
+    void set_Page_min(unsigned int);
 
     Printer* clone()const;
-    unsigned int sconto();
-    unsigned int estendi_garanzia();
+    void sconto(float);
+    void estendi_garanzia(unsigned int);
 
     //~Printer();
 

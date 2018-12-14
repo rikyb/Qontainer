@@ -35,23 +35,23 @@ unsigned int Apparecchio::get_Memoria_archiviazione() const{
 
 //setter
 
-void Apparecchio:: set_CPU(QString& C){
+void Apparecchio:: set_CPU(QString C){
     CPU=C;
 }
 
-void Apparecchio:: set_GPU(QString& G){
+void Apparecchio:: set_GPU(QString G){
     GPU=G;
 }
 
-void Apparecchio:: set_Operating_system(QString& O){
+void Apparecchio:: set_Operating_system(QString O){
     Operating_system=O;
 }
 
-void Apparecchio:: set_Ram(unsigned int& R){
+void Apparecchio:: set_Ram(unsigned int R){
     Ram=R;
 }
 
-void Apparecchio:: set_Memoria_archiviazione(unsigned int& M){
+void Apparecchio:: set_Memoria_archiviazione(unsigned int M){
     Memoria_archiviazione=M;
 }
 
