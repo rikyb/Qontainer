@@ -3,7 +3,7 @@
 #include<QString>
 #include"articolo.h"
 
-class Printer : public Articolo
+class Printer : public Item
 {
 private:
     bool Colors;
@@ -29,8 +29,8 @@ public:
     void set_Page_min(unsigned int);
 
     Printer* clone()const;
-    void sconto(float);
-    void estendi_garanzia(unsigned int);
+    void discount(float);
+    void extend_warranty(unsigned int);
 
     //~Printer();
 

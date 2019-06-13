@@ -2,37 +2,37 @@
 #include "QDebug"
 Computer::Computer(bool F,
                    double P):
-    Fisso(F),
-    Pollici(P){
+    laptop(F),
+    inch(P){
 }
 
 //getter
-bool Computer::get_Fisso()const{
-    return Fisso;
+bool Computer::get_laptop()const{
+    return laptop;
 }
 
-double Computer::get_Pollici()const{
-    return Pollici;
+double Computer::get_inch()const{
+    return inch;
 }
 
 //setter
-void Computer::set_Fisso(bool F){
-    Fisso=F;
+void Computer::set_laptop(bool F){
+    laptop=F;
 }
 
-void Computer::set_Pollici(double P){
-    Pollici=P;
+void Computer::set_inch(double P){
+    inch=P;
 }
 
 Computer* Computer::clone() const{
     return new Computer(*this);
 }
 
-void Computer::sconto(float less){
-    set_Prezzo(get_Prezzo()*((100-less)/100));                   //test
+void Computer::discount(float less){
+    set_price(get_price()*((100-less)/100));                   //test
 }
 
-void Computer::estendi_garanzia(unsigned int warranty){
-    set_Garanzia(get_Garanzia()+warranty);                         //test
+void Computer::extend_warranty(unsigned int warranty){
+    set_warranty(get_warranty()+warranty);                         //test
 }
 

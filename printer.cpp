@@ -53,12 +53,12 @@ Printer* Printer::clone() const{
     return new Printer(*this);
 }
 
-void Printer::sconto(float less){
-    set_Prezzo(get_Prezzo()*((100-less)/100));
+void Printer::discount(float less){
+    set_price(get_price()*((100-less)/100));
 }
 
-void Printer::estendi_garanzia(unsigned int warranty){
-    set_Garanzia(get_Garanzia()+warranty);                    //test
+void Printer::extend_warranty(unsigned int warranty){
+    set_warranty(get_warranty()+warranty);                    //test
 }
 
 /*

@@ -1,67 +1,67 @@
 #include "articolo.h"
 
-Articolo::Articolo(QString M,
+Device::Device(QString M,
                    QString N,
                    unsigned  int P,
                    QDate D,
                    unsigned  int Q,
                    unsigned  int G):
-    Marca(M),
-    Nome(N),
-    Prezzo(P),
-    Data_uscita(D),
-    Quantita(Q),
-    Garanzia(G){
+    brand(M),
+    name(N),
+    price(P),
+    release_data(D),
+    quantity(Q),
+    warranty(G){
 }
 
 //getter
-QString Articolo::get_Marca() const{
-    return Marca;
+QString Device::get_brand() const{
+    return brand;
 }
 
-QString Articolo::get_Nome() const{
-    return Nome;
+QString Device::get_name() const{
+    return name;
 }
 
-float Articolo::get_Prezzo() const{
-    return Prezzo;
+float Device::get_price() const{
+    return price;
 }
 
-QDate Articolo::get_Data_uscita() const{
-    return Data_uscita;
+QDate Device::get_release_data() const{
+    return release_data;
 }
 
-unsigned int Articolo::get_Quantita() const{
-    return Quantita;
+unsigned int Device::get_quantity() const{
+    return quantity;
 }
 
-unsigned int Articolo::get_Garanzia() const{
-    return Garanzia;
+unsigned int Device::get_warranty() const{
+    return warranty;
 }
 
 //setter
-void Articolo::set_Marca(QString M){
-    Marca=M;
+void Device::set_brand(QString M){
+    brand=M;
 }
 
-void Articolo::set_Nome(QString N){
-    Nome=N;
+void Device::set_name(QString N){
+    name=N;
 }
 
-void Articolo::set_Prezzo(float P){
-    Prezzo=P;
+void Device::set_price(float P){
+    price=P;
 }
 
-void Articolo::set_Data_uscita(QDate D){
-    Data_uscita=D;
+void Device::set_release_data(QDate D){
+    release_data=D;
 }
 
-void Articolo::set_Quantita(unsigned int Q){
-    Quantita=Q;
+void Device::set_quantity(unsigned int Q){
+    quantity=Q;
 }
 
-void Articolo::set_Garanzia(unsigned int G){
-    Garanzia=G;
+void Device::set_warranty(unsigned int G){
+    warranty=G;
 }
 
 

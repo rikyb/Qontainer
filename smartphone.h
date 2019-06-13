@@ -3,16 +3,16 @@
 #include<apparecchio.h>
 #include<QString>
 
-class Smartphone: public Apparecchio
+class Smartphone: public Device
 {
 private:
 
-    double Pollici;
-    QString Rete;
-    bool Tastiera;
-    bool Jack;
-    bool Tablet;
-    bool Wifi;
+    double inch;
+    QString network;
+    bool keyboard;
+    bool jack;
+    bool tablet;
+    bool wifi;
 
 public:
     Smartphone(double=0,
@@ -23,23 +23,23 @@ public:
                bool=false
             );
 
-    double get_Pollici()const;
-    QString get_Rete()const;
-    bool get_Tastiera()const;
-    bool get_Jack()const;
-    bool get_Tablet()const;
-    bool get_Wifi()const;
+    double get_inch()const;
+    QString get_network()const;
+    bool get_keyboard()const;
+    bool get_jack()const;
+    bool get_tablet()const;
+    bool get_wifi()const;
 
-    void set_Pollici(double);
-    void set_Rete(QString);
-    void set_Tastiera(bool);
-    void set_Jack(bool);
-    void set_Tablet(bool);
-    void set_Wifi(bool);
+    void set_inch(double);
+    void set_network(QString);
+    void set_keyboard(bool);
+    void set_jack(bool);
+    void set_tablet(bool);
+    void set_wifi(bool);
 
     Smartphone* clone() const;
-    void sconto(float);
-    void estendi_garanzia(unsigned int);
+    void discount(float);
+    void extend_warranty(unsigned int);
 
     //~Smartphone()=default;
 

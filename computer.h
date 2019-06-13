@@ -3,25 +3,25 @@
 #include<apparecchio.h>
 
 
-class Computer :public Apparecchio
+class Computer :public Device
 {
 private:
-    bool Fisso;
-    double Pollici;
+    bool laptop; //is it a laptop computer or not
+    double inch; //if laptop computer then need the monitor size
 
 public:
     Computer(bool=false,
              double=0);
 
-    bool get_Fisso() const;
-    double get_Pollici() const;
+    bool get_laptop() const;
+    double get_inch() const;
 
-    void set_Fisso(bool);
-    void set_Pollici(double);
+    void set_laptop(bool);
+    void set_inch(double);
 
     Computer* clone() const;
-    void sconto(float);
-    void estendi_garanzia(unsigned int);
+    void discount(float);
+    void extend_warranty(unsigned int);
 
     //virtual ~Articolo()=default;
 };

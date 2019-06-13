@@ -3,17 +3,17 @@
 #include <QString>
 #include <QDate>
 
-class Articolo
+class Item
 {
 private:
-    QString Marca;
-    QString Nome;
-    float Prezzo;
-    QDate Data_uscita;
-    unsigned  int Quantita;
-    unsigned  int Garanzia;
+    QString brand;
+    QString name;
+    float price;
+    QDate release_data;
+    unsigned  int quantity;
+    unsigned  int warranty;
 public:
-    Articolo(QString =QString(),
+    Item(QString =QString(),
              QString =QString(),
              unsigned  int =0,
              QDate= QDate(),
@@ -21,25 +21,25 @@ public:
              unsigned  int =0
              );
 
-    QString get_Marca()const;
-    QString get_Nome()const;
-    float get_Prezzo()const;
-    QDate get_Data_uscita()const;
-    unsigned int get_Quantita()const;
-    unsigned int get_Garanzia()const;
+    QString get_brand()const;
+    QString get_name()const;
+    float get_price()const;
+    QDate get_release_data()const;
+    unsigned int get_quantity()const;
+    unsigned int get_warranty()const;
 
-    void set_Marca(QString);
-    void set_Nome(QString);
-    void set_Prezzo(float);
-    void set_Data_uscita(QDate);
-    void set_Quantita(unsigned  int);
-    void set_Garanzia(unsigned  int);
+    void set_brand(QString);
+    void set_name(QString);
+    void set_price(float);
+    void set_release_data(QDate);
+    void set_quantity(unsigned  int);
+    void set_warranty(unsigned  int);
 
-    virtual Articolo* clone() const =0;
+    virtual Item* clone() const =0;
     virtual void sconto(float) =0;
-    virtual void estendi_garanzia(unsigned int)=0;
+    virtual void estendi_warranty(unsigned int)=0;
 
-    //virtual ~Articolo()=default;
+    //virtual ~Item()=default;
 };
 
 #endif // ARTICOLO_H
