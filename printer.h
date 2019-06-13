@@ -32,7 +32,7 @@ public:
     void discount(float);
     void extend_warranty(unsigned int);
 
-    //~Printer();
+    ~Printer();
 
 
 };

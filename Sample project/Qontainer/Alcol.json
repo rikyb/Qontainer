@@ -1,0 +1,14 @@
+{
+    "Alcolici": [
+        {
+            "anno": 2005,
+            "fermentazione": "Botte",
+            "frizzante": false,
+            "grado": 14,
+            "nome": "Merlot Veronese",
+            "provenienza": "Verona",
+            "tipo": "Merlot",
+            "typeID": "Vino"
+        }
+    ]
+}

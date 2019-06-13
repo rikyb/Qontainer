@@ -3,7 +3,7 @@
 #include<QString>
 #include"articolo.h"
 
-class Device: public Articolo{
+class Device: public Item{
 private:
     QString CPU;
     QString GPU;
