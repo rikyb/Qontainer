@@ -1,0 +1,123 @@
+\chapter{Pianificazione del lavoro svolto}
+
+Il seguente capitolo vuole descrivere come sono state suddivise le 320 ore previste per il periodo di stage, affiancando ad ogni settimana lavorativa i requisiti e gli obiettivi raggiunti. Il periodo di stage inizia in data 09-settembre-2019 con termine ufficiale in data 01-novembre-2019 traslata al 03-novembre-2019 a causa del sostenimento di due prove d'esame.
+
+\section{Divisione settimanale}
+
+\begin{itemize}
+	\item \textbf{Prima settimana}:
+	\begin{itemize}
+		 \item analisi del modulo software esistente;
+		 \item funzionalità da realizzare;
+	 	 \item studio della documentazione disponibile dell’algoritmo esistente.
+	\end{itemize}
+	\item \textbf{Seconda settimana}: 
+	\begin{itemize}
+		\item analisi dei rischi;
+		\item stesura dell'analisi dei requisiti che comprende le nuove funzionalità da integrare nel software esistente;
+		\item  inizio della stesura di documentazione a supporto dell'architettura utilizzata.
+	\end{itemize}
+	\item \textbf{Terza settimana}:
+		\begin{itemize}
+		\item Studio delle tecnologie aziendali necessarie allo sviluppo del
+		modulo in particolare linguaggio di programmazione VB.NET\glo, componenti
+		DevExpress\glo e database Informix\glo;
+		\item  training\glosp sulle nuove tecnologie da utilizzare con realizzazione di un software di prova;
+		\item studio di algoritmi e tecniche di Ricerca Operativa e	Ottimizzazione Combinatoria;
+		\item riunioni col tutor aziendale per decidere le scelte implementative dell'algoritmo greedy.
+	\end{itemize}
+	\item \textbf{Quarta settimana}:
+		\begin{itemize}
+		\item Algoritmo Greedy: sviluppo di nuove strategie di scelta
+		del passo successivo adottato dall’algoritmo nella
+		costruzione della soluzione del problema;
+		\item sviluppo procedura di gestione delle giacenze di
+		magazzino.
+		\end{itemize}
+	\item \textbf{Quinta settimana}:
+		\begin{itemize}
+		\item sviluppo procedura di gestione dei semilavorati
+		pianificati;
+			\item sviluppo procedura di gestione degli ordini fornitori.
+		\end{itemize}
+	\item \textbf{Sesta settimana}:
+		\begin{itemize}
+		\item integrazione della Tabu Search con nuovi meccanismi:
+		criteri di aspirazione e arresto, variazione dei
+		meccanismi di esplorazione del vicinato e adozione di
+		tecniche di intensificazione e diversificazione.
+		\end{itemize}
+	\item \textbf{Settima settimana}:
+		\begin{itemize}
+		\item fase di test dei dati con valori reali forniti dai clienti di Ergon;
+		\item comparazione dell'algoritmo ultimato con il precedente algoritmo in uso;
+		\item verifica della bontà della soluzione in rapporto coi dati forniti dai clienti.
+		\end{itemize}
+	\item \textbf{Ottava settimana}:
+		\begin{itemize}
+		\item stesura della documentazione a supporto del prodotto sviluppato, con risalto sulle scelte implementative non banali.
+		\end{itemize}
+\end{itemize}
+
+Da sottolineare il fatto che le fasi di test sono state molteplici e non solo durante la settima settimana. Ad ogni nuova aggiunta veniva effettuato un controllo sul risultato prodotto dalla pianificazione con dei dati reali di supporto, tutto ciò per garantire la correttezza della logica del codice in aggiunta. In comune accordo con il tutor abbiamo deciso di iniziare dalle parti più complesse la nuova fase di implementazione, così da garantire una continua verifica ad ogni aggiunta delle funzionalità meno importanti.
+
+\pagebreak
+\section{Analisi dei rischi}
+Ho trovato importante individuare eventuali rischi che possono portare a problematiche in grado di far procedere a rilento la realizzazione del progetto di stage.
+Di seguito viene presentata la tabella contenente i rischi preventivati durante la seconda settimana di stage. Ogni rischio possiede un codice identificativo, una breve descrizione affiancata dal suo rilevamento e relativo grado di rischio. Per ogni rischio è definito inoltre un piano di contingenza da seguire in caso di occorrenza del rischio.
+
+
+\counterwithin{table}{section}
+\renewcommand{\arraystretch}{1.5}
+\rowcolors{2}{dispari}{pari}
+\arrayrulecolor{white}
+\begin{longtable}{ 
+		>{\centering}p{0.17\textwidth} 
+		>{\raggedright}p{0.28\textwidth}
+		>{\raggedright}p{0.29\textwidth} 
+		>{\centering}p{0.15\textwidth}
+	}
+	
+	\caption{Tabella dei rischi di progetto}\\
+	\rowcolorhead
+	\colorhead\textbf{Codice \\ Nome} & \centering\colorhead\textbf{Descrizione} & 
+	\centering\colorhead\textbf{Piano di contingenza} & 
+	\colorhead\textbf{Grado di rischio} 
+	\tabularnewline
+	\endfirsthead
+	\rowcolor{white}\caption[]{(continua)}\\
+	\rowcolorhead
+	\colorhead\textbf{Nome \\ Codice} & \centering\colorhead\textbf{Descrizione} & 
+	\centering\colorhead\textbf{Rilevamento} & 
+	\colorhead\textbf{Grado di rischio} 
+	\tabularnewline
+	\endhead
+	
+	%RO1---------------------------------------------------------
+	\rowcolordark \textbf{RO1} \\ Problematiche di Ricerca Operativa & 
+	Dovendo svolgere uno studio individuale delle tematiche di Ricerca Operativa da affrontare, è possibile imbattersi in argomenti poco intuitivi o complicati da apprendere in solitaria. &
+	Vengono fornite le dispense riguardanti il contesto in cui si andrà a lavorare e in caso di incomprensioni si farà affidamento sia sul tutor interno sia al proprio relatore. &
+	Occorrenza: \textbf{Media} \\
+	Pericolosità: \textbf{Alta} 
+	\tabularnewline
+	
+	%RT1---------------------------------------------------------
+	\rowcolorlight \textbf{RT1} \\ Inesperienza tecnologica & 
+	Alcune delle tecnologie adottate sono nuove, pertanto è possibile incorrere in problemi durante lo svolgimento delle attività che le coinvolgono. &
+	Viene fornita la documentazione ufficiale in modo da avere ampio supporto per qualsiasi lacuna di natura tecnica. Se ciò non dovesse bastare si farà affidamento al tutor interno o qualche membro delegato del team di sviluppo di Ergon. &
+	Occorrenza: \textbf{Media} \\
+	Pericolosità: \textbf{Media} 
+	\tabularnewline
+
+	%RT2---------------------------------------------------------
+	\rowcolordark \textbf{RT2} \\ Scelte implementative & 
+	Non è detto che tutte le scelte prese in considerazione durante lo studio del problema portino ad una corretta soluzione o ad una esecuzione in tempi accettabili. &
+	Verranno valutate, in caso di necessità, nuove strade da percorrere per la risoluzione del problema. &
+	Occorrenza: \textbf{Bassa} \\
+	Pericolosità: \textbf{Alta} 
+	\tabularnewline
+	
+	
+\end{longtable}
+\counterwithin{table}{subsection}	
+\renewcommand{\arraystretch}{1}

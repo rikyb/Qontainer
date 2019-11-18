@@ -1,0 +1,3062 @@
+Imports System.Linq
+Imports Newtonsoft.Json.Linq
+Imports System.IO
+Imports Newtonsoft.Json
+Imports System.Threading.Tasks
+
+Public Module lib_pianprod_elab
+
+    Class Soluzione
+        Public Linee As List(Of Linea) = New List(Of Linea)
+        Public Domanda As List(Of Ordine) = New List(Of Ordine)
+        Public Calendario As List(Of Giorno) = New List(Of Giorno) 'Ordinato per ora_i
+        Public peso_art As Double = 1
+        Public peso_occ As Double = 1
+        Public peso_tempo As Double = 1
+
+        Public Sub New()
+
+        End Sub
+
+        Public Function Copy()
+            Return New Soluzione With {.Linee = Linee.Select(Function(item) item.Copy()).OfType(Of Linea).ToList(), .Domanda = Domanda.Select(Function(item) item.Copy()).OfType(Of Ordine).ToList(),
+                                                   .Calendario = Calendario.Select(Function(item) item.Copy()).OfType(Of Giorno).ToList(), .peso_art = peso_art, .peso_occ = peso_occ, .peso_tempo = peso_tempo}
+        End Function
+
+        Public Sub New(ByVal lin As List(Of Linea), ByVal dom As List(Of Ordine), ByVal cal As List(Of Giorno), ByVal peso_a As Double, ByVal peso_o As Double, ByVal peso_t As Double)
+            Linee = lin
+            Domanda = dom
+            Calendario = cal
+            peso_art = peso_a
+            peso_occ = peso_o
+            peso_tempo = peso_t
+
+            For Each linea In Linee
+                linea.calendario = Calendario.Select(Function(item) item.Copy()).OfType(Of Giorno).ToList()
+            Next
+
+        End Sub
+
+        'Stampa Soluzione su file
+        Public Sub Print(ByRef sw As StreamWriter)
+
+            For Each lin In Linee
+                sw.WriteLine("Linea: " & lin.cod_linea_prod)
+                For Each seq In lin.pianificazione
+                    sw.WriteLine("sequenza: " & seq.nr_sequenza & " codice: " & seq.cod_seq)
+                    For Each ele In seq.elementi
+                        If ele.isVinc() Then : sw.Write(" vincolo ")
+                        Else : sw.Write(" ordine: " & ele.ordine.nr_ordine & " codice: " & ele.ordine.cod_art)
+                        End If
+                    Next
+                    sw.WriteLine("")
+                Next
+                sw.WriteLine("")
+            Next
+
+        End Sub
+
+        'Segna una painificazione come non modificabile
+        Public Sub Fissa_Pianificazione()
+            For Each lin In Linee
+                For Each pian In lin.pianificazione
+                    pian.fissato = True
+                Next
+            Next
+        End Sub
+
+        'Aggiungi gli articoli da magazzino alla domanda, in fondo
+        Public Sub Aggiungi_Art_Mag(ByRef art_mag As List(Of Articolo_Magazzino))
+            For Each art In art_mag
+                Dim data_sped As DateTime = New Date
+                data_sped = New Date(31, 5, 9999)
+                Dim ordine_mag As Ordine = New Ordine(art.tipo_art, art.cod_art, art.qta_pz, data_sped)
+                Domanda.Add(ordine_mag)
+            Next
+        End Sub
+
+        'Ritorna il numero totale di pezzi prodotti dalla soluzione
+        Function Totale_Pz_Prodotti()
+            Dim tot_pz As Integer = 0
+            For Each lin In Linee
+                tot_pz += lin.Totale_Pz_Linea()
+            Next
+            Return tot_pz
+        End Function
+
+        'Ritorna il totale di pezzi richiesti dalla domanda
+        Function Totale_Pz_Richiesti(ByRef ordini As List(Of Ordine))
+            Dim tot_pz As Integer = 0
+            For Each ord_cli In ordini
+                tot_pz += ord_cli.qta_pz
+            Next
+            Return tot_pz
+        End Function
+
+        'Ritorna il tempo totale di occupazione delle linee
+        Function Occupazione_linee()
+            Dim occupazione As Long = 0
+            For Each lin In Linee
+                occupazione += lin.Occupazione_Linea()
+            Next
+            Return occupazione
+        End Function
+
+        'Ritorna il tempo totale disponibile per la produzione
+        Function Tempo_Totale()
+            Dim tot_tempo As Long = 0
+            For Each gio In Calendario
+                tot_tempo += gio.Tempo_Totale()
+            Next
+            Return tot_tempo * Linee.Count
+        End Function
+
+        'Ritorna il tempo totale di produzione
+        Function Fine_Produzione()
+
+            Dim max_tempo As Long = 0
+            For Each lin In Linee
+                If lin.Tempo_Produzione() > max_tempo Then max_tempo = lin.Tempo_Produzione()
+            Next
+            Return max_tempo
+        End Function
+
+        'Ritorna il numero di secondi dall'inizio del periodo di produzione alla fine
+        Function Tempo_Produzione()
+            Return Calendario.Count * 86400
+        End Function
+
+        'Elimina dalla domanda tutti gli articoli che non sono producibili secondo i dati attuali
+        Public Sub Verifica_Producibilita_Art(ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+            Dim old_domanda As List(Of Ordine) = Domanda
+            Dim new_domanda As List(Of Ordine) = New List(Of Ordine)
+            Domanda = Eccesso_Giacenza(Domanda, giacenze_mag)
+            For Each ord In Domanda
+                If Not Producibile(ord, giacenze_mag, ordini_semilavorati, ordini_fornitori) Then
+                    Continue For
+                Else
+                    new_domanda.Add(ord)
+                End If
+            Next
+            Domanda = new_domanda
+        End Sub
+        'funzione per valutare se ho quantità disponibile totale per soddisfare la richiesta di materie prime/semilavorati
+        Function Eccesso_Giacenza(ByVal Domanda As List(Of Ordine), ByRef giacenze_mag As Giacenze_Magazzino)
+            'totale delle materie prime richieste dalla domanda
+            Dim tot_materie_prime As Dictionary(Of String, Double) = New Dictionary(Of String, Double)
+            'totale dei semi_lav richiesti dalla domanda
+            Dim tot_semi_lav As Dictionary(Of String, Double) = New Dictionary(Of String, Double)
+            'valuto tot materie prime
+            For Each ord In Domanda
+                For Each ele In ord.semi_lavorati
+
+                    If Not tot_materie_prime.ContainsKey(ele.cod_art_db) Then 'se non ho ancora la materia prima dentro lo aggiungo
+                        tot_materie_prime.Add(ele.cod_art_db, ele.qta_db)
+                    Else                                                       'aggiorno la quantita della materia prima
+                        Dim uso As String = ele.cod_art_db
+                        Dim temp As Double = tot_materie_prime(uso)
+                        tot_materie_prime(uso) = ele.qta_db + temp
+                    End If
+                Next
+                'valuto il tot di semilavorati
+                For Each ele In ord.mat_prime
+
+                    If Not tot_semi_lav.ContainsKey(ele.cod_art_db) Then 'se non ho ancora il semi_lav dentro lo aggiungo
+                        tot_semi_lav.Add(ele.cod_art_db, ele.qta_db)
+                    Else                                                       'aggiorno la quantita della materia prima
+                        Dim uso As String = ele.cod_art_db
+                        Dim temp As Double = tot_semi_lav(uso)
+                        tot_semi_lav(uso) = ele.qta_db + temp
+                    End If
+                Next
+            Next
+            'ho il totale di richiesta per ogni ordine di ogni semilavorato e mat prima
+            'voglio togliere dai semi e mat prime tutti gli articoli che posso produrre decrementando la qta in giacenza
+            For Each ele In tot_materie_prime
+                For Each gia In giacenze_mag.giacenze
+                    If String.Equals(ele.Key, gia.cord_art_gia) AndAlso ele.Value <= gia.qta_gia Then
+                        For Each ord In Domanda
+                            Dim iter1 As List(Of Distinta_base) = ord.mat_prime
+                            For Each uso In iter1
+                                If String.Equals(uso.cod_art_db, ele.Key) Then
+                                    gia.qta_gia -= uso.qta_db   'tolgo la quantità che ho in magazzino perchè voglio mantenere dei dati coerenti
+                                    ord.mat_prime.Remove(uso)   'elimino la necessità di eventuali futuri controlli su questo articolo
+                                End If
+                            Next
+                        Next
+                    End If
+                Next
+            Next
+            'semilavorati remove
+            For Each ele In tot_semi_lav
+                For Each gia In giacenze_mag.giacenze
+                    If String.Equals(ele.Key, gia.cord_art_gia) AndAlso ele.Value <= gia.qta_gia Then
+                        For Each ord In Domanda
+                            Dim iter As List(Of Distinta_base) = ord.semi_lavorati
+                            For Each uso In iter
+                                If String.Equals(uso.cod_art_db, ele.Key) Then
+                                    gia.qta_gia -= uso.qta_db 'tolgo la quantità che ho in magazzino perchè voglio mantenere dei dati coerenti
+                                    ord.mat_prime.Remove(uso) 'elimino la necessità di eventuali futuri controlli su questo articolo
+                                End If
+                            Next
+                        Next
+                    End If
+                Next
+            Next
+
+            Return Domanda
+
+        End Function
+        'Elimina le linee in cui l'articolo non è producibile, ritorna true se è producibile in almeno una linea
+        'Elimina anche le info art dalle linee che non possono produrre l'articolo perchè vincolato
+        Function Producibile(ByVal ordine As Ordine, ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+
+            Dim linee_non_prod As List(Of Integer) = New List(Of Integer)
+            Dim linee_non_vinc As List(Of Integer) = New List(Of Integer)
+            Dim i As Integer = 0
+
+            If ordine.data_spedizione_ordcli < Calendario.First.giorno Then Return False ' Ordine impossibile da produrre entro la data di spedizione
+
+            'Conta il numero di linee in cui l'articolo non è producibile (non c'è il valore di pz_ora relativo all'articolo)
+            'Conta il numero di linee che non sono vincolate alla produzione dell'articolo (lo posso produrre solo su quelle)
+            For Each lin In Linee
+
+                If lin.Producibile(ordine) = False Then linee_non_prod.Add(i)
+                If Not lin.Vincolato(ordine) Then linee_non_vinc.Add(i)
+                i += 1
+
+            Next
+
+            'se non posso produrre l'ordine perche mancano materiali ritorno false
+            If Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, Nothing, Nothing, False, False, Nothing) = False Then
+                Return False
+            End If
+
+            'Se nessuna linea può produrlo l'articolo non è producibile
+            If linee_non_prod.Count = Linee.Count Then
+                Return False
+            End If
+
+            'Se non ci sono vincoli di produzione su determinate linee allora lo posso produrre su tutte
+            If linee_non_vinc.Count = Linee.Count Then
+                Return True
+            Else
+                'Alternativamente elimino le informazioni di produzione dell'articolo sulle linee che non possono produrlo in quanto vincolato su altre
+                For Each index In linee_non_vinc
+                    Dim new_info As List(Of Info_Art) = New List(Of Info_Art)
+                    For Each inf In Linee(index).info_art
+                        If Not inf.cod_art = ordine.cod_art Then
+                            new_info.Add(inf)
+                        End If
+                    Next
+                    Linee(index).info_art = new_info
+                Next
+            End If
+
+            Return True
+        End Function
+        
+        'Converte la pianficazione ottenuta in un file JSON
+        Public Function Pianificazione_To_Json()
+
+            Dim obj As JObject = New JObject
+            Dim obj_pt As JObject = New JObject
+            Dim linea As JArray = New JArray
+            Dim art As JArray = New JArray
+            Dim pausa_pt As JObject = New JObject
+            Dim l_obj As JObject = New JObject
+
+
+            obj.Add("da_data", Calendario.First().giorno)
+            obj.Add("a_data", Calendario.Last().giorno)
+
+
+            For Each lin In Linee
+                If lin.cod_linea_prod = "" Then
+                    Continue For
+                End If
+                l_obj = New JObject
+                art = New JArray
+                l_obj.Add("cod_linea_prod", lin.cod_linea_prod)
+                For Each seq In lin.pianificazione
+                    Dim ora_i_elem As Long = seq.ora_inizio
+                    Dim sequenza As Seq_Pian = seq
+
+                    If seq.cod_seq = "0" Then
+                        obj_pt = New JObject
+                        obj_pt.Add("cod_seq", seq.cod_seq)
+                        obj_pt.Add("vincolo", "S")
+                        obj_pt.Add("tipo_art", seq.elementi(0).vincolo.tipo_art)
+                        obj_pt.Add("cod_linea", seq.elementi(0).vincolo.cod_linea)
+                        obj_pt.Add("cod_sett", seq.elementi(0).vincolo.cod_sett)
+                        obj_pt.Add("cod_fam", seq.elementi(0).vincolo.cod_fam)
+                        obj_pt.Add("cod_sott", seq.elementi(0).vincolo.cod_sott)
+                        obj_pt.Add("cod_art", seq.elementi(0).vincolo.cod_art)
+                        obj_pt.Add("des_vinc", seq.elementi(0).vincolo.des_vinc)
+                        If Not Field_Null(lin.vincoli_linea.Find(Function(x) x.cod_art = sequenza.elementi(0).vincolo.cod_art).ora_inizio) Then
+                            Dim ora_i As Long = StringToSec(lin.vincoli_linea.Find(Function(x) x.cod_art = sequenza.elementi(0).vincolo.cod_art).ora_inizio)
+                            obj_pt.Add("ora_inizio", RoundDown(SecToString(ora_i).ToString).ToString)
+                            obj_pt.Add("ora_fine", RoundDown(SecToString(ora_i + lin.info_vinc.Find(Function(x) x.cod_art = sequenza.elementi(0).vincolo.cod_art).sec_lav).ToString).ToString)
+                        Else
+                            Dim orario_reale As Orari = Calendario.Find(Function(x) x.giorno = sequenza.giorno).Orario_Reale(seq.ora_inizio, seq.ora_fine)
+                            obj_pt.Add("ora_inizio", RoundDown(SecToString(orario_reale.ora_inizio_sec).ToString).ToString)
+                            obj_pt.Add("ora_fine", RoundDown(SecToString(orario_reale.ora_fine_sec).ToString).ToString)
+                        End If
+                        obj_pt.Add("giorno", seq.giorno)
+                        art.Add(obj_pt)
+                        Continue For
+                    End If
+
+                    For Each elem In seq.elementi
+                        obj_pt = New JObject
+                        obj_pt.Add("cod_seq", seq.cod_seq)
+                        Dim ora_f_elem As Long = ora_i_elem + elem.sec_lav
+
+                        If elem.isVinc() Then
+                            obj_pt.Add("vincolo", "S")
+                            obj_pt.Add("tipo_art", elem.vincolo.tipo_art)
+                            obj_pt.Add("cod_linea", elem.vincolo.cod_linea)
+                            obj_pt.Add("cod_sett", elem.vincolo.cod_sett)
+                            obj_pt.Add("cod_fam", elem.vincolo.cod_fam)
+                            obj_pt.Add("cod_sott", elem.vincolo.cod_sott)
+                            obj_pt.Add("cod_art", elem.vincolo.cod_art)
+                            obj_pt.Add("des_vinc", elem.vincolo.des_vinc)
+                        Else
+                            obj_pt.Add("vincolo", "N")
+                            obj_pt.Add("cod_linea", elem.ordine.cod_linea)
+                            obj_pt.Add("cod_sett", elem.ordine.cod_sett)
+                            obj_pt.Add("cod_fam", elem.ordine.cod_fam)
+                            obj_pt.Add("cod_sott", elem.ordine.cod_sott)
+                            obj_pt.Add("cod_art", elem.ordine.cod_art)
+                            obj_pt.Add("anno_ord", elem.ordine.anno_ord)
+                            obj_pt.Add("nr_ord", elem.ordine.nr_ord)
+                            obj_pt.Add("nr_riga_ord", elem.ordine.nr_riga_ord)
+                            obj_pt.Add("data_spedizione_ordcli", elem.ordine.data_spedizione_ordcli)
+                            obj_pt.Add("ora_spedizione_ordcli", elem.ordine.ora_spedizione_ordcli)
+                            obj_pt.Add("data_consegna_ordcli", elem.ordine.data_cons_ordcli)
+                        End If
+
+                        Dim pause_oggi As List(Of Orari) = lin.calendario.Find(Function(x) x.giorno = sequenza.giorno).Pause_Giorno()
+
+                        If pause_oggi.Count <> 0 Then
+
+                            For Each pausa In pause_oggi
+                                pausa_pt = New JObject
+
+                                'Se la pausa è precedente all'elemento traslo in avanti l'elemento della lunghezza della pausa
+                                If pausa.ora_fine_sec < ora_i_elem Then
+                                    If elem.Equals(seq.elementi.First) Then
+                                        ora_i_elem += pausa.sec_tempo()
+                                        ora_f_elem += pausa.sec_tempo()
+                                    End If
+                                    'Se la pausa inizia dopo l'elemento, piazzo un pezzo dell'elemento prima della pausa e il resto dopo
+                                ElseIf pausa.ora_inizio_sec >= ora_i_elem AndAlso pausa.ora_inizio_sec <= ora_f_elem Then
+                                    Dim pz_art As JObject = New JObject(obj_pt)
+                                    pz_art.Add("ora_inizio", RoundDown(SecToString(ora_i_elem).ToString).ToString)
+                                    pz_art.Add("ora_fine", RoundDown(SecToString(pausa.ora_inizio_sec).ToString).ToString)
+                                    pz_art.Add("giorno", seq.giorno)
+                                    art.Add(pz_art)
+                                    ora_i_elem = pausa.ora_fine_sec
+                                    ora_f_elem = ora_f_elem + (pausa.ora_fine_sec - pausa.ora_inizio_sec)
+
+                                    'Se la pausa inzia prima dell'elemento, sposto l'elemento dopo la pausa
+                                ElseIf pausa.ora_fine_sec > ora_i_elem AndAlso pausa.ora_inizio_sec <= ora_i_elem Then
+                                    ora_i_elem += pausa.sec_tempo()
+                                    ora_f_elem += pausa.sec_tempo()
+                                End If
+                            Next
+                        End If
+                        obj_pt.Add("ora_inizio", RoundDown(SecToString(ora_i_elem).ToString).ToString)
+                        obj_pt.Add("ora_fine", RoundDown(SecToString(ora_f_elem).ToString).ToString)
+                        obj_pt.Add("giorno", seq.giorno)
+                        If Not elem.isVinc() Then obj_pt.Add("qta_pz", elem.ordine.qta_pz)
+                        ora_i_elem = ora_f_elem + 1
+                        art.Add(obj_pt)
+                    Next
+                Next
+                l_obj.Add("articoli", art)
+                linea.Add(l_obj)
+            Next
+            obj.Add("linee", linea)
+
+            Dim info As JArray = New JArray
+            Dim info_linea As JObject = New JObject
+            Dim info_linea_pt As JArray = New JArray
+
+            For Each lin In Linee
+                info_linea = New JObject
+                info_linea_pt = New JArray
+                obj_pt = New JObject
+
+                info_linea.Add("linea", lin.cod_linea_prod)
+                For Each errore In lin.errori
+                    info_linea_pt.Add(errore)
+                Next
+                info_linea.Add("errori", info_linea_pt)
+                info.Add(info_linea)
+            Next
+            obj.Add("info", info)
+
+            Dim da_data_path As String = Calendario.First().giorno.Day & "-" & Calendario.First().giorno.Month & "-" & Calendario.First().giorno.Year
+            Dim a_data_path As String = Calendario.Last().giorno.Day & "-" & Calendario.Last().giorno.Month & "-" & Calendario.Last().giorno.Year
+            Dim path As String = IO.Path.Combine("c:\pc_pianprod", DB_GetConnectionInfo("DB"), da_data_path & "_" & a_data_path & "_pian.json")
+
+            If Not IO.Directory.Exists(IO.Path.Combine("c:\pc_pianprod", DB_GetConnectionInfo("DB"))) Then
+                IO.Directory.CreateDirectory(IO.Path.Combine("c:\pc_pianprod", DB_GetConnectionInfo("DB")))
+            End If
+
+            Using output As StreamWriter = New StreamWriter(path)
+                output.Write(obj.ToString)
+            End Using
+
+            Return path
+
+        End Function
+
+        'Aggiunge la pianificazione pregressa alla soluzione iniziale
+        Public Sub Aggiungi_Pian_Gia_Presente(ByVal fissata As Boolean, Optional Cod_Dep As String = "")
+
+            Dim elementi As List(Of Elemento) = New List(Of Elemento)
+
+            For Each lin In Linee
+
+                Dim sequenze As List(Of Seq_Pian) = New List(Of Seq_Pian)
+
+                Dim dr_pian As DB2DataReader = Nothing
+                Dim cmd_pian As DB2Command = Nothing
+                Dim Sql As String
+
+                Sql = ""
+                Sql = Sql & "   SELECT * " & vbCrLf
+                Sql = Sql & "     FROM pp_calend_ora" & vbCrLf
+                Sql = Sql & "    WHERE data_pian >= '" & Calendario.First.giorno & "' AND data_pian <= '" & Calendario.Last.giorno & "' AND cod_linea_prod = '" & lin.cod_linea_prod & "'" & vbCrLf
+                If Cod_Dep <> "" Then
+                    Sql = Sql & " AND pp_calend_ora.cod_dep = '" & Cod_Dep & "' " & vbCrLf
+                End If
+                Sql = Sql & "ORDER BY ora_pian"
+
+                cmd_pian = DB_CommandCreate(Sql)
+                dr_pian = cmd_pian.ExecuteReader
+
+                While dr_pian.Read
+
+                    Dim cod_seq As String = DB_Dsv(dr_pian.Item("sequenza")) 'ritorno il valore del campo se esiste altrimenti ritorno il valore null
+                    Dim cod_art As String = DB_Dsv(dr_pian.Item("cod_art_pian"))
+                    Dim tipo_art As String = DB_Dsv(dr_pian.Item("tipo_art_pian")) 'trova colonna giusta
+                    If cod_seq = "0" Then
+
+                        'elementi = New List(Of Elemento)
+                        'elementi.Add(New Elemento(lin.vincoli_linea.Find(Function(x) x.cod_art = cod_art).Copy(), StringToSec(DB_Dsv(dr_pian.Item("durata_pian")))))
+                        'sequenze.Add(New Seq_Pian("0", DB_Dsv(dr_pian.Item("data_pian")), StringToSec(DB_Dsv(dr_pian.Item("ora_pian"))), StringToSec(DB_Dsv(dr_pian.Item("ora_fine"))), elementi))
+                    Else
+                        Dim elemento As Elemento = Nothing
+
+                        If DB_Dsv(dr_pian.Item("anno_ord")) = 0 AndAlso DB_Dsv(dr_pian.Item("nr_ord")) = 0 AndAlso DB_Dsv(dr_pian.Item("nr_riga_ord")) = 0 Then
+
+                            If DB_Dsv(dr_pian.Item("qta_pian")) = 0 Then
+                                If lin.sequenze_linea.FindIndex(Function(x) x.cod_seq = cod_seq) <> -1 Then
+                                    elemento = New Elemento(lin.sequenze_linea.Find(Function(x) x.cod_seq = cod_seq).articoli.Find(Function(x) x.cod_art = cod_art), StringToSec(DB_Dsv(dr_pian.Item("durata_pian"))))
+                                End If
+                            Else 'TOFIX
+                                elemento = New Elemento(New Ordine("PF", cod_art, DB_Dsv(dr_pian.Item("qta_pian")), DB_Dsv(dr_pian.Item("data_sped"))), DB_Dsv(dr_pian.Item("durata_pian")), lin.sequenze_linea.Find(Function(x) x.cod_seq = cod_seq).articoli.Find(Function(x) x.cod_art = cod_art).seq_ordine)
+                            End If
+                        Else
+                            Dim cod_sett As String = Nothing
+                            Dim cod_linea As String = Nothing
+                            Dim cod_fam As String = Nothing
+                            Dim cod_sott As String = Nothing
+                            Dim data_sped As Date = Nothing
+                            Dim ora_sped As Date = Nothing
+                            Dim data_cons As Date = Nothing
+                            Dim cod_line_pref As String = Nothing
+                            DB_LookUp("cod_linea_gest, cod_sett_gest, cod_fam_gest, cod_sott_gest", "anaart", "cod_art = '" & cod_art & "'", cod_linea, cod_sett, cod_fam, cod_sott)
+
+                            Dim giorni_prod_ant As Integer = Nothing
+                            Dim tipo_scadenza As String = Nothing
+                            Dim qta_tipo_scadenza As String = Nothing
+                            Dim protection_time As String = Nothing
+                            Dim scadenza As Integer = Nothing
+
+                            DB_LookUp("giorni_prod_ant, tipo_scadenza, qta_tipo_scad", "anaart", "cod_art ='" & cod_art & "' ", giorni_prod_ant, tipo_scadenza, qta_tipo_scadenza)
+                            DB_LookUp("data_spedizione, ora_spedizione", "ordcli", "anno_ord = " & DB_Dsv(dr_pian.Item("anno_ord")) & " AND nr_ord = " & DB_Dsv(dr_pian.Item("nr_ord")), data_sped, ora_sped, data_cons)
+                            DB_LookUp("data_cons", "ordclidet", "anno_ord = " & DB_Dsv(dr_pian.Item("anno_ord")) & " AND nr_ord = " & DB_Dsv(dr_pian.Item("nr_ord")) & " AND nr_riga_ord = " & DB_Dsv(dr_pian.Item("nr_riga_ord")), data_cons)
+                            DB_LookUp("cod_linea_prod_pre", "anaart", "cod_art = '" & cod_art & "'", cod_line_pref)
+                            DB_LookUp("protection_time", "azienda_agg", "chiave_reg = 1", protection_time)
+
+                            'Aggiunsto le date di spedizione e consegna
+                            scadenza = Calcola_Giorni_Scadenza(tipo_scadenza, qta_tipo_scadenza)
+                            If Not Field_Null(scadenza) And giorni_prod_ant < scadenza Then
+                                scadenza = giorni_prod_ant 'se deve essere pronta prima della scadenza richiesta dal cliente (es: necessario 1 giorno per caricare)
+                            End If
+
+                            If Not Field_Null(protection_time) Then 'tempo impostato dal produttore come protezione
+                                If Not Field_Null(ora_sped) Then
+                                    ora_sped.Subtract(Date.Parse(protection_time))
+                                Else
+                                    data_sped.Subtract(Date.Parse(protection_time))
+                                End If
+                            End If
+                            If scadenza <> 0 Then data_sped.Subtract(Date.Parse(scadenza.ToString())) 'setto la data di spedizione in modo da rispettare le scadenze
+
+                            'MODIFICA IMPORTANTE settato a 0 i valori delle materie prime e semilav nella ripianificazione
+
+                            Dim ord As Ordine = New Ordine("PF", cod_art, cod_linea, cod_sett, cod_fam, cod_sott, DB_Dsv(dr_pian.Item("qta_pian")), data_sped, ora_sped.TimeOfDay.ToString, data_cons, cod_line_pref, DB_Dsv(dr_pian.Item("anno_ord")), DB_Dsv(dr_pian.Item("nr_ord")),
+                                                           DB_Dsv(dr_pian.Item("nr_riga_ord")), Nothing, Nothing, Nothing)
+
+
+
+                            Dim sequenza As Sequenza = lin.sequenze_linea.Find(Function(x) x.cod_seq = cod_seq)
+
+                            Dim ord_ris As Integer = 0
+                            'Verifico che ci sia qualcosa in sequenza
+                            If Not sequenza Is Nothing Then
+                                For i As Integer = 0 To sequenza.articoli.Count - 1
+                                    If sequenza.articoli(i).cod_art = cod_art Then
+                                        ord_ris = sequenza.articoli(i).seq_ordine
+                                        Exit For
+                                    End If
+                                Next
+                            End If
+
+                            elemento = New Elemento(ord, StringToSec(DB_Dsv(dr_pian.Item("durata_pian"))), ord_ris)
+                            elementi = New List(Of Elemento)
+                        End If
+
+                        'Costruisco la lista di elementi
+                        Dim i_seq As Integer = sequenze.FindIndex(Function(x) x.cod_seq = cod_seq)
+                        If i_seq >= 0 Then
+                            sequenze(i_seq).elementi.Add(elemento)
+                            sequenze(i_seq).ora_fine += elemento.sec_lav + 1
+                        Else
+                            elementi.Add(elemento)
+                            sequenze.Add(New Seq_Pian(cod_seq, DB_Dsv(dr_pian.Item("data_pian")), StringToSec(DB_Dsv(dr_pian.Item("ora_pian"))), StringToSec(DB_Dsv(dr_pian.Item("ora_pian"))) + StringToSec(DB_Dsv(dr_pian.Item("durata_pian"))), elementi, fissata))
+                            elementi = New List(Of Elemento)
+                        End If
+                    End If
+                End While
+
+                'Calcolo le durate delle sequenze
+                For Each seq In lin.pianificazione
+                    Dim durata As Long = 0
+                    For Each ele In seq.elementi
+                        durata += ele.sec_lav
+                    Next
+                    seq.ora_fine = seq.ora_inizio + durata
+                Next
+                lin.pianificazione = sequenze
+
+                lin.pianificazione.Sort(Function(x, y) Pianificato_Prima(x, y))
+
+            Next
+        End Sub
+
+        'Ritorna il quale delle due sequenze è pianificata prima
+        Public Function Pianificato_Prima(ByVal A As Seq_Pian, ByVal B As Seq_Pian) As Integer
+            If A.giorno = B.giorno Then
+                Return A.ora_inizio.CompareTo(B.ora_inizio)
+            Else
+                Return A.giorno.CompareTo(B.giorno)
+            End If
+        End Function
+
+        'Mossa che esegue lo spostamento di un articolo/ordine da una sequenza ad un'altra
+        Public Function Esegui_Mossa_Sposto_Art(ByVal i_lin_art As Integer, ByVal i_seq_art As Integer, ByVal i_art As Integer, ByVal i_lin_seq As Integer,
+                                                ByVal i_seq As Integer, ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter,
+                                                ByRef miglior_soluzione As Soluzione, ByRef giacenze_mag As Giacenze_Magazzino,
+                                                ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+
+            Dim linea_seq As Linea = Linee(i_lin_seq)
+            Dim linea_art As Linea = Linee(i_lin_art)
+            Dim pian_art As Seq_Pian = linea_art.pianificazione(i_seq_art)
+            Dim giorni_modificati As List(Of Date) = New List(Of Date)
+            Dim ordine As Ordine = pian_art.elementi(i_art).ordine
+            Dim ora_f As Long = -1
+            Dim giorno As Date = Nothing
+
+
+            If Not Elimina_Art(linea_art, i_art, i_seq_art) Then
+                'sw.WriteLine("non è possibile eliminare l'articolo dalla sequenza di partenza.")
+                Return False
+            End If
+
+            If i_lin_art <> i_lin_seq OrElse i_seq > i_seq_art Then 'Probabilmente ridondante TOFIX
+                If Controlla_Vincoli(pian_art.giorno, i_lin_art) = False Then
+                    'sw.WriteLine("non è possibile eliminare l'articolo dalla sequenza di partenza.")
+                    Return False
+                End If
+            End If
+
+            'Se sono nella stessa linea e la sequenza di destinazione è successiva a quella di partenza e quella di partenza è stata eliminata (articolo era ultimo ordine rimasto) allora decremento l'indice seq di destinazione
+            If i_lin_art = i_lin_seq AndAlso i_seq > i_seq_art AndAlso Not linea_seq.pianificazione(i_seq_art).Equals(pian_art) Then i_seq -= 1
+
+            If Linee(i_lin_seq).IsEmpty Then Return Esegui_Mossa_Aggiungo_Art_Nuova_Seq(i_lin_seq, Tabu_list, sw1, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori) 'Se la linea è vuota aggiungo l'articolo in una nuova sequenza
+
+            Dim pian_seq As Seq_Pian = linea_seq.pianificazione(i_seq)
+            Dim id_mossa_inv As String = "SPOSTOART_" & i_lin_seq & "_" & pian_seq.nr_sequenza & "_" & ordine.nr_ordine & "_" & i_lin_art & "_" & pian_art.nr_sequenza & "_"
+            Dim id_mossa As String = "SPOSTOART_" & i_lin_art & "_" & pian_art.nr_sequenza & "_" & ordine.nr_ordine & "_" & i_lin_seq & "_" & pian_seq.nr_sequenza
+
+            Dim mossa As String = "Sposto ordine: " & ordine.nr_ordine & " dalla sequenza: " & pian_art.nr_sequenza & " della linea: " & linea_art.cod_linea_prod & " alla sequenza: " & pian_seq.nr_sequenza & " della linea: " & linea_seq.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False 'se è gia presente nella tabu list ritorna false
+
+            If (linea_seq.IsEmpty AndAlso Not linea_seq.Producibile(ordine)) OrElse Not linea_seq.sequenze_linea.Find(Function(x) x.cod_seq = pian_seq.cod_seq).Produce(ordine) OrElse linea_seq.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) = -1 Then
+                'sw.WriteLine("la sequenza di destinazione non può contenere l'ordine.")
+                Return False
+            End If
+
+            Dim giorno_arrivo As Date = Nothing
+
+            Get_ultimo_sl(Linee, ora_f, giorno, ordine)
+
+            If Not Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea_art, Linee, False, False, giorno_arrivo) Then
+                Return False
+            End If
+
+            If Not Date.MinValue = giorno_arrivo And giorno_arrivo >= giorno Then
+                giorno = giorno_arrivo.AddDays(1)
+            End If
+
+            If ordine.cod_art = "FTO/B/2" Then
+                Dim test = 96
+            End If
+
+            If Not Aggiungi_Art(ordine, i_lin_seq, i_seq, giorni_modificati, ora_f, giorno) Then
+                'sw.WriteLine("non è possibile aggiungere l'articolo alla sequenza di destinazione, non c'è più spazio nella linea.")
+                Return False
+            End If
+
+            giorni_modificati.Add(linea_seq.pianificazione(i_seq).giorno)
+
+            For Each gior In giorni_modificati
+                If Controlla_Vincoli(gior, i_lin_seq) = False Then
+                    'sw.WriteLine("non è possibile aggiungere l'articolo alla sequenza di destinazione, almeno un vincolo di linea non rispettato.")
+                    Return False
+                End If
+            Next
+
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+
+        'Esegue lo scambio di due articoli/ordini pianificati fra due sequenze
+        Public Function Esegui_Mossa_Scambio_Art(ByVal i_lin_1 As Integer, ByVal i_seq_1 As Integer, ByVal i_art1 As Integer,
+                                                 ByVal i_lin_2 As Integer, ByVal i_seq_2 As Integer, ByVal i_art2 As Integer,
+                                                 ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter,
+                                                 ByRef miglior_soluzione As Soluzione, ByRef giacenze_mag As Giacenze_Magazzino,
+                                                ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+
+            Dim linea_art_1 As Linea = Linee(i_lin_1)
+            Dim linea_art_2 As Linea = Linee(i_lin_2)
+            Dim pian_art_1 As Seq_Pian = linea_art_1.pianificazione(i_seq_1)
+            Dim pian_art_2 As Seq_Pian = linea_art_2.pianificazione(i_seq_2)
+            Dim giorni_modificati_1 As List(Of Date) = New List(Of Date)
+            Dim giorni_modificati_2 As List(Of Date) = New List(Of Date)
+            Dim ordine_1 As Ordine = pian_art_1.elementi(i_art1).ordine
+            Dim ordine_2 As Ordine = pian_art_2.elementi(i_art2).ordine
+            Dim nr_seq_2 As Integer = pian_art_2.nr_sequenza
+            Dim id_mossa As String = "SCAMBIOART_" & i_lin_1 & "_" & pian_art_1.nr_sequenza & "_" & ordine_1.nr_ordine & "_" & i_lin_2 & "_" & pian_art_2.nr_sequenza & "_" & ordine_2.nr_ordine
+            Dim id_mossa_inv As String = "SCAMBIOART_" & i_lin_2 & "_" & pian_art_2.nr_sequenza & "_" & ordine_2.nr_ordine & "_" & i_lin_1 & "_" & pian_art_1.nr_sequenza & "_" & ordine_1.nr_ordine
+            Dim ora_i1 As Long = -1
+            Dim giorno1 As Date = Nothing
+            Dim ora_i2 As Long = -1
+            Dim giorno2 As Date = Nothing
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False
+
+            If ordine_1.tipo_art = "SL" Then 'non posso spostare il sl prima del suo ordine
+                For Each ord In ordine_1.riferimento_ordine
+                    If ord.cod_art = ordine_2.cod_art Then
+                        Return False
+                    End If
+                Next
+            Else 'non posso spostare il pf prima dei suoi semilavorati
+                For Each ord In ordine_1.riferimento_ordine
+                    If ord.cod_art = ordine_2.cod_art Then
+                        Return False
+                    End If
+                Next
+            End If
+
+            Dim giorno_arrivo1 As Date = Nothing
+            Dim giorno_arrivo2 As Date = Nothing
+
+            If Not Sottrai_giacenza(ordine_1, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea_art_1, Linee, False, False, giorno_arrivo1) Then
+                Return False
+            End If
+
+            If Not Sottrai_giacenza(ordine_2, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea_art_2, Linee, False, False, giorno_arrivo2) Then
+                Return False
+            End If
+
+            Get_ultimo_sl(Linee, ora_i1, giorno1, ordine_1)
+            Get_ultimo_sl(Linee, ora_i2, giorno2, ordine_2)
+
+            If Not Date.MinValue = giorno_arrivo1 And giorno_arrivo1 >= giorno1 Then
+                giorno1 = giorno_arrivo1.AddDays(1)
+            End If
+
+            If Not Date.MinValue = giorno_arrivo2 And giorno_arrivo2 >= giorno2 Then
+                giorno2 = giorno_arrivo2.AddDays(1)
+            End If
+
+            Dim mossa As String = "Scambio ordine: " & ordine_1.nr_ordine & " dalla sequenza: " & pian_art_1.nr_sequenza & " della linea: " & linea_art_1.cod_linea_prod & _
+                         " con l'ordine: " & ordine_2.nr_ordine & " della sequenza: " & pian_art_2.nr_sequenza & " della linea: " & linea_art_2.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            If Not linea_art_1.sequenze_linea.Find(Function(x) x.cod_seq = pian_art_1.cod_seq).Produce(ordine_2) OrElse linea_art_1.info_art.FindIndex(Function(x) x.cod_art = ordine_2.cod_art) = -1 Then
+                'sw.WriteLine("la sequenza: " & linea_art_1.cod_linea_prod & " non può contenere l'ordine.")
+                Return False
+            End If
+
+            If Not linea_art_2.sequenze_linea.Find(Function(x) x.cod_seq = pian_art_2.cod_seq).Produce(ordine_1) OrElse linea_art_2.info_art.FindIndex(Function(x) x.cod_art = ordine_1.cod_art) = -1 Then
+                'sw.WriteLine("la sequenza: " & linea_art_2.cod_linea_prod & " non può contenere l'ordine.")
+                Return False
+            End If
+
+            If Not Elimina_Art(linea_art_1, i_art1, i_seq_1, True) Then
+                'sw.WriteLine("non è possibile eliminare l'articolo dalla linea: " & linea_art_1.cod_linea_prod)
+                Return False
+            End If
+            If Not Elimina_Art(linea_art_2, i_art2, i_seq_2, True) Then
+                'sw.WriteLine("non è possibile eliminare l'articolo dalla linea: " & linea_art_2.cod_linea_prod)
+                Return False
+            End If
+
+            If ordine_1.cod_art = "FTO/B/2" Then
+                Dim test = 96
+            End If
+
+            If ordine_2.cod_art = "FTO/B/2" Then
+                Dim test = 96
+            End If
+
+            If Not Aggiungi_Art(ordine_2, i_lin_1, i_seq_1, giorni_modificati_1, ora_i2, giorno2) Then
+                'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea_art_1.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            If linea_art_2.pianificazione(i_seq_2).cod_seq = "0" Then
+                i_seq_2 = linea_art_2.pianificazione.FindIndex(Function(x) x.nr_sequenza = nr_seq_2)
+            End If
+
+            If Not Aggiungi_Art(ordine_1, i_lin_2, i_seq_2, giorni_modificati_2, ora_i1, giorno1) Then
+                'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea_art_2.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            For Each gior In giorni_modificati_1
+                If Controlla_Vincoli(gior, i_lin_1) = False Then
+                    'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea_art_1.cod_linea_prod & " almeno un vincolo non rispettato.")
+                    Return False
+                End If
+            Next
+
+            For Each gior In giorni_modificati_2
+                If Controlla_Vincoli(gior, i_lin_2) = False Then
+                    'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea_art_1.cod_linea_prod & " almeno un vincolo non rispettato.")
+                    Return False
+                End If
+            Next
+
+
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+
+        'Esegue la mossa di spostamento di una sequenza successiva ad un'altra sequenza o all'inizio della pianificazione
+        Public Function Esegui_Mossa_Sposto_Seq(ByVal i_lin_des As Integer, ByVal i_seq_des As Integer, ByVal i_lin_seq As Integer,
+                                                ByVal i_seq As Integer, ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter)
+
+            Dim linea_des As Linea = Linee(i_lin_des)
+            Dim seq As Seq_Pian = Linee(i_lin_seq).pianificazione(i_seq)
+            Dim giorni_modificati As List(Of Date) = New List(Of Date)
+            Dim id_mossa As String = "SPOSTOSEQ_" & i_lin_des & "_" & i_seq_des & "_" & i_lin_seq & "_" & seq.nr_sequenza
+            Dim id_mossa_inv As String = "SPOSTOSEQ_" & i_lin_seq & "_" & i_seq & "_" & i_lin_des & "_" & seq.nr_sequenza
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False
+
+            Dim seq_des As Long = Nothing
+
+            If i_seq_des = linea_des.pianificazione.Count Then
+                seq_des = 10000 'Se è l'ultima, segno il massimo indice
+            Else
+                seq_des = Linee(i_lin_des).pianificazione(i_seq_des).nr_sequenza 'se no segno il numero della sequenza
+            End If
+
+            Dim mossa As String = "Sposto la sequenza: " & seq.nr_sequenza & " della linea: " & Linee(i_lin_seq).cod_linea_prod & _
+                    " prima della sequenza: " & seq_des & " della linea: " & linea_des.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            'se sono nella stessa linea e la seq di destinazione è successiva, allora aggiorno l'indice
+            If i_lin_des = i_lin_seq AndAlso i_seq_des > i_seq Then i_seq_des -= 1
+
+            If linea_des.sequenze_linea.FindIndex(Function(x) x.cod_seq = seq.cod_seq) = -1 OrElse Not linea_des.Contiene_Info(seq) Then
+                'sw.WriteLine("non è possibile inserire la sequenza nella linea: " & linea_des.cod_linea_prod)
+                Return False
+            End If
+
+            If Not Elimina_Seq(Linee(i_lin_seq), i_seq) Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & Linee(i_lin_seq).cod_linea_prod)
+                Return False
+            End If
+
+            'Controllo seq successiva per vincoli di sequenza
+            If Not Modifica_Vincoli_Seq(Linee(i_lin_seq), i_seq) Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & Linee(i_lin_seq).cod_linea_prod)
+                Return False
+            End If
+
+            seq.Calcola_Nuove_Durate(linea_des)
+
+            'Inserisco la sequenza nell'indice oppure se è l'ultima la aggiungo alla fine
+            If i_seq_des = linea_des.pianificazione.Count + 1 Then : linea_des.pianificazione.Add(seq)
+            Else : linea_des.pianificazione.Insert(i_seq_des, seq)
+            End If
+
+            If i_seq_des = 0 Then 'Se devo inserirla come prima sequenza della giornata lo faccio
+                seq.giorno = linea_des.calendario(0).giorno
+                seq.ora_inizio = linea_des.calendario(0).Ora_Inizio()
+            Else 'Altrimenti la inserisco subito dopo alla sequenza precedente
+                seq.giorno = linea_des.pianificazione(i_seq_des - 1).giorno
+                seq.ora_inizio = linea_des.pianificazione(i_seq_des - 1).ora_fine + 1
+            End If
+
+            'Controllo seq successiva per vincoli di sequenza
+            If Not Modifica_Vincoli_Seq(Linee(i_lin_des), i_seq_des) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_des.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            seq.ora_fine = seq.ora_inizio + seq.Durata()
+
+            'Se
+            If seq.ora_fine > linea_des.calendario.Find(Function(x) x.giorno = seq.giorno).Ora_Fine Then
+                Dim giorno_succ As Date = linea_des.pianificazione(i_seq_des).giorno.AddDays(1)
+                If i_seq = linea_des.pianificazione.Count AndAlso linea_des.calendario.FindIndex(Function(x) x.giorno = giorno_succ) <> -1 Then
+                    seq.giorno = giorno_succ
+                    seq.ora_inizio = linea_des.calendario.Find(Function(x) x.giorno = giorno_succ).Ora_Inizio()
+                    seq.ora_fine = seq.ora_inizio + seq.Durata()
+                    If seq.ora_fine > linea_des.calendario.Find(Function(x) x.giorno = seq.giorno).Ora_Fine Then Return False
+
+                    If linea_des.pianificazione.FindIndex(Function(x) x.giorno = seq.giorno AndAlso x.nr_sequenza <> seq.nr_sequenza) <> -1 Then
+                        linea_des.pianificazione.Remove(seq)
+                        i_seq_des = linea_des.pianificazione.FindIndex(Function(x) x.giorno = seq.giorno)
+                        linea_des.pianificazione.Insert(i_seq_des, seq)
+                    End If
+                Else
+                    Return False
+                End If
+            End If
+
+            If Not Trasla_Pianificazione(i_seq_des, linea_des, giorni_modificati) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_des.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            'controllo seq successiva per vincoli di sequenza
+            If Not Modifica_Vincoli_Seq(Linee(i_lin_des), i_seq_des + 1) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_des.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            For Each gior In giorni_modificati
+                If Controlla_Vincoli(gior, i_lin_seq) = False Then
+                    'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_des.cod_linea_prod & " almeno un vincolo non rispettato.")
+                    Return False
+                End If
+            Next
+
+            If Not Verifica_spostamento_seq(linea_des, i_seq_des) Then
+                Return False
+            End If
+
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+        'verifico che non siano stati violati vincoli di producibilità degli articoli sl
+        Public Function Verifica_spostamento_seq(ByVal linea As Linea, ByVal sequenza As Integer)
+            Dim ora_f As Long = -1
+            Dim giorno As Date = Nothing
+            For Each ele In linea.pianificazione(sequenza).elementi
+                If Not ele.isVinc() Then
+                    If ele.ordine.riferimento_ordine.Count <> 0 Then
+                        Get_ultimo_sl(Linee, ora_f, giorno, ele.ordine)
+                        If giorno > linea.pianificazione(sequenza).giorno Then
+                            Return False
+                            If giorno = linea.pianificazione(sequenza).giorno AndAlso ora_f > linea.pianificazione(sequenza).ora_fine Then
+                                Return False
+                            End If
+                        End If
+                    End If
+                End If
+            Next
+            Return True
+        End Function
+
+
+        'Esegue la mossa di scambio di due sequenze
+        Public Function Esegui_Mossa_Scambio_Seq(ByVal i_lin_seq1 As Integer, ByVal i_seq1 As Integer, ByVal i_lin_seq2 As Integer,
+                                                 ByVal i_seq2 As Integer, ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter)
+
+            Dim linea_seq1 As Linea = Linee(i_lin_seq1)
+            Dim linea_seq2 As Linea = Linee(i_lin_seq2)
+            Dim seq1 As Seq_Pian = linea_seq1.pianificazione(i_seq1).Copy()
+            Dim seq2 As Seq_Pian = linea_seq2.pianificazione(i_seq2).Copy()
+            Dim giorni_modificati_1 As List(Of Date) = New List(Of Date)
+            Dim giorni_modificati_2 As List(Of Date) = New List(Of Date)
+            Dim id_mossa As String = "SCAMBIOSEQ_" & i_lin_seq1 & "_" & seq1.nr_sequenza & "_" & i_lin_seq2 & "_" & seq2.nr_sequenza
+            Dim id_mossa_inv As String = "SCAMBIOSEQ_" & i_lin_seq2 & "_" & seq2.nr_sequenza & "_" & i_lin_seq1 & "_" & seq1.nr_sequenza
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False
+
+            Dim mossa As String = "Scambio la sequenza: " & seq1.nr_sequenza & " della linea: " & linea_seq1.cod_linea_prod & _
+                   " con la sequenza: " & seq2.nr_sequenza & " della linea: " & linea_seq2.cod_linea_prod
+
+            If linea_seq1.sequenze_linea.FindIndex(Function(x) x.cod_seq = seq2.cod_seq) = -1 OrElse Not linea_seq1.Contiene_Info(seq2) Then
+                'sw.WriteLine("non è possibile inserire la sequenza nella linea: " & linea_seq1.cod_linea_prod)
+                Return False
+            End If
+
+            If linea_seq2.sequenze_linea.FindIndex(Function(x) x.cod_seq = seq1.cod_seq) = -1 OrElse Not linea_seq2.Contiene_Info(seq1) Then
+                'sw.WriteLine("non è possibile inserire la sequenza nella linea: " & linea_seq2.cod_linea_prod)
+                Return False
+            End If
+
+            If Not Elimina_Seq(linea_seq1, i_seq1) Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & linea_seq1.cod_linea_prod)
+                Return False
+            End If
+
+            seq2.Calcola_Nuove_Durate(linea_seq1)
+
+            If i_seq1 = linea_seq1.pianificazione.Count Then : linea_seq1.pianificazione.Add(seq2)
+            Else : linea_seq1.pianificazione.Insert(i_seq1, seq2)
+            End If
+
+            If i_seq1 = 0 Then
+                seq2.giorno = linea_seq1.calendario(0).giorno
+                seq2.ora_inizio = linea_seq1.calendario(0).Ora_Inizio()
+            Else
+                seq2.giorno = linea_seq1.pianificazione(i_seq1 - 1).giorno
+                seq2.ora_inizio = linea_seq1.pianificazione(i_seq1 - 1).ora_fine + 1
+            End If
+            seq2.ora_fine = seq2.ora_inizio + seq2.Durata()
+
+            If seq2.ora_fine > linea_seq1.calendario.Find(Function(x) x.giorno = seq2.giorno).Ora_Fine Then
+                Dim giorno_succ As Date = linea_seq1.pianificazione(i_seq1).giorno.AddDays(1)
+                If i_seq1 = linea_seq1.pianificazione.Count AndAlso linea_seq1.calendario.FindIndex(Function(x) x.giorno = giorno_succ) <> -1 Then
+                    seq2.giorno = giorno_succ
+                    seq2.ora_inizio = linea_seq1.calendario.Find(Function(x) x.giorno = giorno_succ).Ora_Inizio()
+                    seq2.ora_fine = seq2.ora_inizio + seq2.Durata()
+                    If seq2.ora_fine > linea_seq1.calendario.Find(Function(x) x.giorno = seq2.giorno).Ora_Fine Then Return False
+
+                    If linea_seq1.pianificazione.FindIndex(Function(x) x.giorno = seq2.giorno AndAlso x.nr_sequenza <> seq2.nr_sequenza) <> -1 Then
+                        linea_seq1.pianificazione.Remove(seq2)
+                        i_seq1 = linea_seq1.pianificazione.FindIndex(Function(x) x.giorno = seq2.giorno)
+                        linea_seq1.pianificazione.Insert(i_seq1, seq2)
+                    End If
+                Else
+                    Return False
+                End If
+            End If
+
+            If Not Trasla_Pianificazione(i_seq1, linea_seq1, giorni_modificati_1) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq1.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            'controllo seq successiva per vincoli di sequenza
+            If Not Modifica_Vincoli_Seq(linea_seq1, i_seq1) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq1.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            Verifica_spostamento_seq(linea_seq1, i_seq1)
+
+            If Not Elimina_Seq(linea_seq2, i_seq2) Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & linea_seq2.cod_linea_prod)
+                Return False
+            End If
+
+            seq1.Calcola_Nuove_Durate(linea_seq2)
+
+            If i_seq2 = linea_seq2.pianificazione.Count Then : linea_seq2.pianificazione.Add(seq1)
+            Else : linea_seq2.pianificazione.Insert(i_seq2, seq1)
+            End If
+
+            If i_seq2 = 0 Then
+                seq1.giorno = linea_seq2.calendario(0).giorno
+                seq1.ora_inizio = linea_seq2.calendario(0).Ora_Inizio()
+            Else
+                seq1.giorno = linea_seq2.pianificazione(i_seq2 - 1).giorno
+                seq1.ora_inizio = linea_seq2.pianificazione(i_seq2 - 1).ora_fine + 1
+            End If
+            seq1.ora_fine = seq1.ora_inizio + seq1.Durata()
+
+            If seq1.ora_fine > linea_seq2.calendario.Find(Function(x) x.giorno = seq1.giorno).Ora_Fine Then
+                Dim giorno_succ As Date = linea_seq2.pianificazione(i_seq2).giorno.AddDays(1)
+                If i_seq2 = linea_seq2.pianificazione.Count AndAlso linea_seq2.calendario.FindIndex(Function(x) x.giorno = giorno_succ) <> -1 Then
+                    seq1.giorno = giorno_succ
+                    seq1.ora_inizio = linea_seq2.calendario.Find(Function(x) x.giorno = giorno_succ).Ora_Inizio()
+                    seq1.ora_fine = seq1.ora_inizio + seq1.Durata()
+                    If seq2.ora_fine > linea_seq2.calendario.Find(Function(x) x.giorno = seq2.giorno).Ora_Fine Then Return False
+
+                    If linea_seq1.pianificazione.FindIndex(Function(x) x.giorno = seq1.giorno AndAlso x.nr_sequenza <> seq1.nr_sequenza) <> -1 Then
+                        linea_seq2.pianificazione.Remove(seq1)
+                        i_seq2 = linea_seq1.pianificazione.FindIndex(Function(x) x.giorno = seq1.giorno)
+                        linea_seq1.pianificazione.Insert(i_seq2, seq1)
+                    End If
+                Else
+                    Return False
+                End If
+            End If
+
+            If Not Trasla_Pianificazione(i_seq2, linea_seq2, giorni_modificati_2) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq2.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            'controllo seq successiva per vincoli di sequenza
+            If Not Modifica_Vincoli_Seq(linea_seq2, i_seq2) Then
+                'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq2.cod_linea_prod & " non c'è più spazio.")
+                Return False
+            End If
+
+            giorni_modificati_1.Add(seq2.giorno)
+            giorni_modificati_2.Add(seq1.giorno)
+
+            If i_lin_seq1 <> i_lin_seq2 OrElse i_seq1 < i_seq2 Then
+                For Each gior In giorni_modificati_1
+                    If Controlla_Vincoli(gior, i_lin_seq1) = False Then
+                        'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq1.cod_linea_prod & " almeno un vincolo non rispettato.")
+                        Return False
+                    End If
+                Next
+            ElseIf i_lin_seq1 <> i_lin_seq2 OrElse i_seq1 > i_seq2 Then
+                For Each gior In giorni_modificati_2
+                    If Controlla_Vincoli(gior, i_lin_seq2) = False Then
+                        'sw.WriteLine("non è possibile aggiungere la sequenza alla linea: " & linea_seq2.cod_linea_prod & " almeno un vincolo non rispettato.")
+                        Return False
+                    End If
+                Next
+            End If
+            Verifica_spostamento_seq(linea_seq2, i_seq2)
+
+
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+
+        'Esegue la mossa di aggiungere un articolo dalla domanda alla pianificazione
+        Public Function Esegui_Mossa_Aggiungo_Art(ByVal i_lin As Integer, ByVal i_seq As Integer, ByRef Tabu_list As List(Of String),
+                                                  ByRef soluzione As Soluzione, giacenze_mag As Giacenze_Magazzino,
+                                                  ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori,
+                                                   ByRef sw1 As StreamWriter)
+
+            Dim linea As Linea = Linee(i_lin)
+            Dim seq As Seq_Pian = linea.pianificazione(i_seq)
+            Dim giorni_modificati As List(Of Date) = New List(Of Date)
+            Dim rand As Random = New Random
+            Dim Random As Integer = rand.Next(0, Domanda.Count - 1)
+            Dim ordine As Ordine = Domanda(Random) 'selezione casualmente tra gli ordini non pianificati
+            Dim id_mossa As String = "AGGIUNGOART_" & i_lin & "_" & seq.nr_sequenza & "_" & ordine.nr_ordine
+            Dim id_mossa_inv As String = "ELIMINOART_" & i_lin & "_" & seq.nr_sequenza & "_" & ordine.nr_ordine
+            Dim ora_f As Long = -1
+            Dim giorno As Date = Nothing
+            Dim giorno_arrivo As Date = Nothing
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False
+
+            If ordine.tipo_art = "SL" Then Return False
+
+            'controllo se l'ordine è producibile in base alle materie prime
+            If Not Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea, Linee, True, True, giorno_arrivo) Then Return False
+
+            Dim mossa As String = "Aggiungo l'ordine: " & ordine.nr_ordine & " alla sequenza: " & seq.nr_sequenza & " della linea: " & linea.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            If (Not linea.sequenze_linea.Find(Function(x) x.cod_seq = seq.cod_seq).Produce(ordine)) OrElse linea.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) = -1 Then
+                'sw.WriteLine("la sequenza di destinazione non può contenere l'ordine.")
+                Return False
+            End If
+            Dim rand_lin As Random = New Random
+            Dim Random_lin As Integer = rand_lin.Next(0, Linee.Count)
+            Dim rand_seq As Random = New Random
+            Dim Random_seq As Integer = rand_seq.Next(0, Linee(Random_lin).pianificazione.Count)
+
+            Dim giorno_arrivo_sl As Date = Nothing
+            For Each ord In ordine.riferimento_ordine
+                Sottrai_giacenza(ord, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea, Linee, false, false, giorno_arrivo_sl) 'ottendo la data di arrivo dei fornitori
+                If Not Date.MinValue = giorno_arrivo_sl And giorno_arrivo_sl >= giorno Then
+                    giorno = giorno_arrivo_sl.AddDays(1)
+                End If
+
+                If ordine.cod_art = "FTO/B/2" Then
+                    Dim test = 96
+                End If
+
+                If Not Aggiungi_Art(ord, Random_lin, Random_seq, giorni_modificati, ora_f, giorno) Then
+                    'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea.cod_linea_prod & " non c'è più spazio.")
+                    'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+                    Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                    Return False
+                End If
+                Random_lin = rand.Next(0, Linee.Count)
+                Random_seq = rand.Next(0, Linee(Random_lin).pianificazione.Count)
+            Next
+
+            If Not Date.MinValue = giorno_arrivo And giorno_arrivo >= giorno Then
+                giorno = giorno_arrivo.AddDays(1)
+            End If
+
+            If ordine.cod_art = "FTO/B/2" Then
+                Dim test = 96
+            End If
+
+            If Not Aggiungi_Art(ordine, i_lin, i_seq, giorni_modificati, ora_f, giorno) Then
+                'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea.cod_linea_prod & " non c'è più spazio.")
+                'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+                Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                Return False
+            End If
+
+            Get_ultimo_sl(Linee, ora_f, giorno, ordine)
+            For Each gior In giorni_modificati
+                If Controlla_Vincoli(gior, i_lin) = False Then
+                    'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea.cod_linea_prod & " almeno un vincolo non rispettato.")
+                    'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+                    Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                    Return False
+                End If
+            Next
+
+            Domanda.RemoveAt(0)
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+
+        'Esegue la mossa di aggiungere un articolo dalla domanda in una nuova sequenza
+        Public Function Esegui_Mossa_Aggiungo_Art_Nuova_Seq(ByVal i_lin As Integer, ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter, ByRef soluzione As Soluzione, ByRef giacenze_mag As Giacenze_Magazzino,
+                                                            ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+
+            If Domanda.Count = 0 Then Return False
+
+            Dim linea As Linea = Linee(i_lin)
+            Dim giorni_modificati As List(Of Date) = New List(Of Date)
+            Dim ordine As Ordine = Domanda(0)
+            Dim new_seq As Seq_Pian = Nothing
+            Dim best_seq As List(Of Integer) = Nothing
+            Dim giorno As Date = Nothing
+            Dim ora_i As Long = -1
+            Dim giorno_arrivo As Date = Nothing
+
+            If ordine.tipo_art = "SL" Then Return False
+
+            If linea.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) OrElse linea.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) = -1 Then
+                'sw.WriteLine("la linea di destinazione non può contenere l'ordine.")
+                Return False
+            End If
+
+            'If Not Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea, Linee, False, True, giorno_arrivo) Then ' ottengo tutti i riferimenti dei sl dell'ordine
+            If Not Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea, Linee, True, True, giorno_arrivo) Then ' ottengo tutti i riferimenti dei sl dell'ordine
+                Return False
+            End If
+
+            Dim rand_lin As Random = New Random
+            Dim Random_lin As Integer = rand_lin.Next(0, Linee.Count)
+            Dim rand_seq As Random = New Random
+            Dim Random_seq As Integer = rand_seq.Next(0, Linee(Random_lin).pianificazione.Count)
+            Dim giorno_arrivo_sl As Date = Nothing
+
+            For Each ord In ordine.riferimento_ordine
+                If Linee(Random_lin).pianificazione.Count <> 0 Then
+                    Sottrai_giacenza(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, linea, Linee, False, False, giorno_arrivo_sl)
+                    If Not Date.MinValue = giorno_arrivo_sl And giorno_arrivo_sl >= giorno Then
+                        giorno = giorno_arrivo_sl.AddDays(1)
+                    End If
+
+                    If ordine.cod_art = "FTO/B/2" Then
+                        Dim test = 96
+                    End If
+                    If Not Aggiungi_Art(ord, Random_lin, Random_seq, giorni_modificati, ora_i, giorno) Then
+                        'sw.WriteLine("non è possibile aggiungere l'articolo alla linea: " & linea.cod_linea_prod & " non c'è più spazio.")
+                        'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+                        Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                        Return False
+                    End If
+                    Random_lin = rand_lin.Next(0, Linee.Count)
+                    Random_seq = rand_seq.Next(0, Linee(Random_lin).pianificazione.Count)
+                Else
+                    Return False
+                End If
+            Next
+
+            giorno = giorno_arrivo
+
+            'inizio a pianificare il PF solo dopo aver pianificato i sui SL
+            best_seq = linea.Migliori_Seq(ordine) 'ottengo la lista degli indici delle migliori sequenze di produzione
+
+            Dim mossa As String = "Aggiungo l'ordine: " & ordine.nr_ordine & " in una nuova sequenza della linea: " & linea.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            'Scorre tutti i buchi nella linea per trovarne uno adatto
+            For i As Integer = 0 To best_seq.Count - 1
+
+                Dim i_new_seq = linea.Aggiungi_Seq_Art(best_seq(i), ordine, giorno, ora_i) 'qui metto i controlli per giorno e ora di produzione
+                If i_new_seq <> -1 Then
+
+                    new_seq = linea.pianificazione(i_new_seq)
+
+                    Dim id_mossa As String = "AGGIUNGOART_" & i_lin & "_" & new_seq.nr_sequenza & "_" & ordine.nr_ordine
+                    Dim id_mossa_inv As String = "ELIMINOART_" & i_lin & "_" & new_seq.nr_sequenza & "_" & ordine.nr_ordine
+
+                    If IsTabu(id_mossa, Tabu_list) Then
+                        'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+                        Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                        Return False
+                    End If
+                    Domanda.RemoveAt(0)
+                    Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+                    Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+                    'sw1.WriteLine(mossa)
+                    Return True
+                Else
+                    Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+                End If
+            Next
+            'sw.WriteLine("non è possibile aggiungere la nuova sequenza alla linea: " & linea.cod_linea_prod & " non c'è spazio.")
+            'Aggiungi_giacenza_mat(ordine, giacenze_mag) 'restituisco le mat prime impiegate dei sl pianificati
+            Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+            Return False
+        End Function
+        'eseguo la pianificazione dei sl dell'ordine
+        Public Function Aggiungi_Semilavorati(ByVal ordine As Ordine)
+
+            Dim best_seq As List(Of Integer) = Nothing
+            Dim rand As Random = New Random()
+            rand.Next(0, Linee.Count)
+            Dim linea As Linea = Linee(rand.ToString)
+            Dim new_seq As Seq_Pian = Nothing
+
+            If linea.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) OrElse linea.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) = -1 Then
+                'la linea di destinazione non può contenere l'ordine
+                Return False
+            End If
+
+            best_seq = linea.Migliori_Seq(ordine) 'ottengo la lista degli indici delle migliori sequenze di produzione
+
+            For i As Integer = 0 To best_seq.Count - 1
+
+                Dim i_new_seq = linea.Aggiungi_Seq_Art(best_seq(i), ordine, Nothing, -1) 'qui metto i controlli per giorno e ora di produzione
+                If i_new_seq <> -1 Then
+                    Return True
+                End If
+            Next
+
+            'se non sono riuscito a pianificare i sl
+            Return False
+        End Function
+
+        'creo una copia dell'ordine in base ai parametri della funzione
+        Public Function Copia_Ordine(ByVal i_lin As Integer, ByVal i_seq As Integer, ByVal i_art As Integer)
+            Dim linea As Linea = Linee(i_lin)
+            Dim seq As Seq_Pian = linea.pianificazione(i_seq)
+            If i_art >= seq.elementi.Count Then i_art -= 1
+            Dim ordine As Ordine = seq.elementi(i_art).ordine
+            Return ordine
+        End Function
+        'aggiungo le materie prime dell' articolo che vado ad eliminare dalla pianificazione
+        Public Sub Aggiungi_Giacenza(ByRef ordine_copia As Ordine, ByRef giacenze_mag As Giacenze_Magazzino)
+
+            Dim ordine As Ordine = ordine_copia
+            Dim trovato As Boolean = False
+            'incremento le materie prime in magazzino (forse bisogna aggiungere un controllo sulla presenza dell'articolo in magazzino)
+            For Each ele In ordine.mat_prime
+                For Each gia In giacenze_mag.giacenze
+                    If String.Equals(ele.cod_art_db, gia.cord_art_gia) Then
+                        gia.qta_gia += ele.qta_db
+                    End If
+                Next
+            Next
+
+            'incremento i semi-lavorati in magazzino
+            For Each ele In ordine.semi_lavorati
+                For Each gia In giacenze_mag.giacenze
+                    If String.Equals(ele.cod_art_db, gia.cord_art_gia) Then
+                        gia.qta_gia += ele.qta_db
+                    End If
+                Next
+            Next
+
+        End Sub
+
+        'Esegue la mossa di eliminare un articolo/ordine pianificato esistente
+        Public Function Esegui_Mossa_Elimino_Art(ByVal i_lin As Integer, ByVal i_seq As Integer, ByVal i_art As Integer,
+                                                 ByRef Tabu_list As List(Of String), ByRef sw1 As StreamWriter,
+                                                 ByRef giacenze_mag As Giacenze_Magazzino, ByRef soluzione As Soluzione)
+
+            Dim linea As Linea = Linee(i_lin)
+            Dim seq As Seq_Pian = linea.pianificazione(i_seq)
+            Dim ordine As Ordine = seq.elementi(i_art).ordine
+            Dim id_mossa As String = "ELIMINOART_" & i_lin & "_" & seq.nr_sequenza & "_" & ordine.nr_ordine
+            Dim id_mossa_inv As String = "AGGIUNGOART_" & i_lin & "_" & seq.nr_sequenza & "_" & ordine.nr_ordine
+
+            If IsTabu(id_mossa, Tabu_list) Then Return False
+
+            If ordine.tipo_art = "SL" Then Return False 'elimino solo in caso sia un PF perchè lo devo poi riaggiungere alla domanda
+
+            Dim mossa As String = "Elimino l'ordine: " & ordine.nr_ordine & " dalla sequenza: " & seq.nr_sequenza & " della linea: " & linea.cod_linea_prod
+            'sw.WriteLine(mossa)
+
+            If Not Elimina_Art(linea, i_art, i_seq) Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & linea.cod_linea_prod)
+                Return False
+            End If
+
+            If Controlla_Vincoli(seq.giorno, i_lin) = False Then
+                'sw.WriteLine("non è possibile eliminare la sequenza dalla linea: " & linea.cod_linea_prod)
+                Return False
+            End If
+
+            Dim index = Domanda.FindIndex(Function(x) x.data_spedizione_ordcli > ordine.data_spedizione_ordcli)
+
+            'Aggiunge di nuovo l'ordine nella domanda al posto corretto
+            If index <> -1 Then : Domanda.Insert(index, ordine)
+            Else : Domanda.Add(ordine)
+            End If
+
+            'Aggiungi_giacenza_mat(ordine, giacenze_mag)
+            Elimina_pianificati(ordine, Linee, soluzione, giacenze_mag)
+            Aggiungi_Mossa_Tabu(id_mossa, Tabu_list)
+            Aggiungi_Mossa_Tabu(id_mossa_inv, Tabu_list)
+            'sw1.WriteLine(mossa)
+            Return True
+        End Function
+
+        'Ritorna true se la mossa è tabu (è presente già nell atabu list
+        Public Function IsTabu(ByVal id_mossa As String, ByRef Tabu_List As List(Of String))
+            If Tabu_List.Contains(id_mossa) Then
+                'sw.WriteLine("mossa tabu")
+                Return True
+            End If
+            Return False
+        End Function
+
+        'Aggiunge la mossa alla tabu list
+        Public Sub Aggiungi_Mossa_Tabu(ByVal id_mossa As String, ByRef Tabu_list As List(Of String))
+            Tabu_list.Add(id_mossa)
+            If Tabu_list.Count = LUNGHEZZA_TABU_LIST Then Tabu_list.RemoveAt(0) 'Se ho raggiunto la dimensione massima, rimuovo la prima aggiunta
+        End Sub
+
+        'Elimino un articolo dalla pianficazone della linea indicata
+        Public Function Elimina_Art(ByRef linea_art As Linea, ByVal i_art As Integer, ByRef i_seq_art As Integer, Optional ByVal tieni_sequenza_vuota As Boolean = False)
+
+            Dim pian_art As Seq_Pian = linea_art.pianificazione(i_seq_art)
+            Dim old_pian_art As Seq_Pian = pian_art.Copy()
+
+            Dim vincoli_tolti As List(Of Vincolo) = pian_art.elimina_el(i_art) 'elimino l'articolo
+
+            'Se non devo tenere la sequenza vuota e il numero di vincoli tolti è uguale agli elementi esistenti prima - 1 (sono tutti e soli vincolo) allora rimuovo la sequenza
+            If Not IsNothing(vincoli_tolti) Then
+                If Not tieni_sequenza_vuota AndAlso vincoli_tolti.Count = old_pian_art.elementi.Count - 1 Then
+                    linea_art.pianificazione.RemoveAt(i_seq_art)
+                End If
+            End If
+            'Compatto il giorno
+            linea_art.Compatta_Seq_Giorno(Calendario.Find(Function(x) x.giorno = old_pian_art.giorno).giorno)
+
+            'Scoorro i vincoli ed ogni vincolo tolto, se non è pianificato già, lo riaggiungo alla pianificazione come sequenza vincoli (cod_seq = "0")
+            For Each vinc In linea_art.vincoli_linea.FindAll(Function(x) x.data = Calendario.Find(Function(y) y.giorno = old_pian_art.giorno).giorno OrElse Field_Null(x.data))
+
+                Dim vincolo As Vincolo = vinc
+
+                If vincoli_tolti.Count > 0 AndAlso vincoli_tolti.FindIndex(Function(x) x.cod_art = vincolo.cod_art) <> -1 Then
+
+                    If Not linea_art.Inserisci_Vincolo(vinc, old_pian_art.giorno) Then Return False
+                End If
+
+            Next
+
+            'non posso elimianare un SL ma solo PF
+
+            pian_art.ora_fine = pian_art.ora_inizio + pian_art.Durata()
+            Return True
+        End Function
+
+        'Aggiungo un articolo alla sequenza
+        Public Function Aggiungi_Art(ByVal ordine As Ordine, ByVal i_lin_seq As Integer, ByVal i_seq As Integer, ByRef giorni_modificati As List(Of Date), ByVal ora_f As Long, ByVal giorno As Date)
+
+            Dim linea_seq As Linea = Linee(i_lin_seq)
+            If linea_seq.pianificazione.Count = 0 Then Return False
+            If i_seq > linea_seq.pianificazione.Count - 1 Then Return False
+
+            Dim pian_seq As Seq_Pian = linea_seq.pianificazione(i_seq)
+            If i_seq > pian_seq.elementi.Count - 1 Then Return False
+
+            Dim old_ora_fine As Long = pian_seq.ora_fine
+
+            'Se non ci sta provo a fare spazio nella pianificazione traslando le sequenze successive
+            If Not linea_seq.Aggiungi_Art(i_seq, ordine, ora_f, giorno) Then
+                If IsNothing(pian_seq.elementi(i_seq).ordine) Then Return False
+                Dim new_ora_fine As Long = pian_seq.ora_fine + linea_seq.Tempo_Nuovo_Articolo_Seq(pian_seq, ordine)
+
+                giorni_modificati.Add(pian_seq.giorno)
+                pian_seq.ora_fine = new_ora_fine
+
+                If Not Trasla_Pianificazione(i_seq, linea_seq, giorni_modificati) Then Return False
+
+                pian_seq.ora_fine = old_ora_fine
+
+                'Se ancora non ci sta ritorno false
+                If Not linea_seq.Aggiungi_Art(i_seq, ordine, ora_f, giorno) Then : Return False
+                Else : pian_seq = linea_seq.pianificazione(i_seq)
+                End If
+            End If
+
+            'Se ci sta calcolo la nuova durata e ritorno true
+            pian_seq.ora_fine = pian_seq.ora_inizio + pian_seq.Durata()
+            Return True
+        End Function
+
+        'Traslo gli elementi successivi nella pianificazione in modo da cercare di far spazio alla sequenza corrente
+        Public Function Trasla_Pianificazione(ByRef i_seq As Integer, ByRef linea As Linea, ByRef giorni_modificati As List(Of Date))
+
+            Dim linea_seq As Linea = linea
+
+            'Scorro le sequenze successive
+            For i As Integer = i_seq + 1 To linea_seq.pianificazione.Count - 1
+                Dim index As Integer = i
+                Dim no_spazio_fine As Boolean = False
+                Dim sovrappone_seq_prec As Boolean = False
+                Dim sovrappone_fine_giorno As Boolean = False
+
+                sovrappone_seq_prec = linea_seq.pianificazione(i).giorno = linea_seq.pianificazione(i - 1).giorno AndAlso
+                     linea_seq.pianificazione(i).ora_inizio <= linea_seq.pianificazione(i - 1).ora_fine
+
+                If Not sovrappone_seq_prec Then Exit For
+                'Finchè l'orario si sovrappone a quello successivo o alla fine della giornata
+
+                'Se la seq e la successiva sono sullo stesso giorno, se è un vinc obb inamovibile allora sposto la seq subito dopo al vincolo, se no sposto la seq successiva alla fine di quella corrente
+                If linea_seq.pianificazione(i).Inamovibile() Then
+                    linea_seq.pianificazione(i - 1).ora_inizio = linea_seq.pianificazione(i).ora_fine + 1
+                    linea_seq.pianificazione(i - 1).ora_fine = linea_seq.pianificazione(i - 1).ora_inizio + linea_seq.pianificazione(i - 1).Durata()
+                    linea_seq.Scambia_Seq(i, i - 1)
+                    If i = i_seq + 1 Then i_seq += 1
+                Else
+                    linea_seq.pianificazione(i).ora_inizio = linea_seq.pianificazione(i - 1).ora_fine + 1
+                    linea_seq.pianificazione(i).ora_fine = linea_seq.pianificazione(i).ora_inizio + linea_seq.pianificazione(i).Durata
+                End If
+
+                Dim ora_fine As Long = linea_seq.calendario.Find(Function(x) x.giorno = linea_seq.pianificazione(index).giorno).Ora_Fine()
+
+                'Se non ci sono elementi successivi e non ci sta nel giorno corrente, provo a inserirlo in un nuovo giorno
+                If (i = linea_seq.pianificazione.Count - 1) AndAlso linea_seq.pianificazione(i).ora_fine > linea_seq.calendario.Find(Function(x) x.giorno = linea_seq.pianificazione(index).giorno).Ora_Fine() Then
+
+                    If Calendario.FindIndex(Function(x) x.giorno = linea_seq.pianificazione(index).giorno) <> Calendario.Count - 1 Then
+                        linea_seq.pianificazione(i).giorno = Calendario.Find(Function(x) x.giorno > linea_seq.pianificazione(index).giorno).giorno
+                        linea_seq.pianificazione(i).ora_inizio = linea_seq.calendario.Find(Function(x) x.giorno = linea_seq.pianificazione(index).giorno).Ora_Inizio()
+                        linea_seq.pianificazione(i).ora_fine = linea_seq.pianificazione(i).ora_inizio + linea_seq.pianificazione(i).Durata
+                        giorni_modificati.Add(linea_seq.pianificazione(i).giorno)
+                    Else
+                        Return False
+                    End If
+
+                ElseIf linea_seq.pianificazione(i).ora_fine > ora_fine Then
+
+                    'Se la seq e la successiva sono su due giorni diversi, allora sposta la seq all'inizio del giorno successivo  
+                    Dim giorno_seguente As Date = Giorno_Successivo(linea_seq.pianificazione(i).giorno, Calendario)
+                    Dim giorno_corrente As Giorno = linea_seq.calendario.Find(Function(x) x.giorno = linea_seq.pianificazione(index).giorno)
+
+                    If Calendario.FindIndex(Function(x) x.giorno = giorno_seguente) = -1 Then Return False
+
+                    giorni_modificati.Add(giorno_seguente)
+
+                    linea_seq.pianificazione(i).giorno = giorno_seguente
+                    linea_seq.pianificazione(i).ora_inizio = linea_seq.calendario.Find(Function(x) x.giorno = giorno_seguente).Ora_Inizio()
+                    linea_seq.pianificazione(i).ora_fine = linea_seq.pianificazione(i).ora_inizio + linea_seq.pianificazione(i).Durata
+
+                    'se non ci sta nel nuovo giorno anche se esso fosse vuoto ritorno false, in modo da evitare la creazione di vuoti 
+                    If linea_seq.pianificazione(i).ora_fine > linea_seq.calendario.Find(Function(x) x.giorno = linea_seq.pianificazione(i).giorno).Ora_Fine() Then Return False
+
+                    Dim j As Integer = 0
+
+                    'Per ogni sequenza successiva, se non sta nel giorno corrente, la sposto al giorno successivo
+                    For j = i + 1 To linea_seq.pianificazione.Count - 1
+
+                        If linea_seq.pianificazione(j).giorno <> giorno_corrente.giorno Then Exit For
+                        If linea_seq.pianificazione(j).cod_seq = "0" Then
+                            linea.Scambia_Seq(j, j - 1)
+                            Continue For
+                        End If
+
+                        linea_seq.pianificazione(j).giorno = giorno_seguente
+                        linea_seq.pianificazione(j).ora_inizio = linea_seq.pianificazione(j - 1).ora_fine + 1
+                        linea_seq.pianificazione(j).ora_fine = linea_seq.pianificazione(j).ora_inizio + linea_seq.pianificazione(j).Durata()
+
+                    Next
+
+                    i = j - 1
+                End If
+
+            Next
+            Return True
+        End Function
+
+        'Elimino la sequenza dalla linea indicata
+        Public Function Elimina_Seq(ByRef linea_des As Linea, ByVal i_seq_des As Integer)
+
+            Dim vincoli_tolti As List(Of Vincolo) = New List(Of Vincolo)
+            Dim giorno As Date = linea_des.pianificazione(i_seq_des).giorno
+
+            'Memorizzo i vincoli eliminati
+            For Each elem In linea_des.pianificazione(i_seq_des).elementi
+                If elem.isVinc() Then vincoli_tolti.Add(elem.vincolo)
+            Next
+
+            'Rimuovo la seqeuenza
+            linea_des.pianificazione.RemoveAt(i_seq_des)
+
+            'Compatto il giorno
+            linea_des.Compatta_Seq_Giorno(Calendario.Find(Function(x) x.giorno = giorno).giorno)
+
+            'Per ogni vincolo tolto, inserisco un vincolo oppurtuno nel giorno se necessario
+            For Each vinc In linea_des.vincoli_linea.FindAll(Function(x) x.data = Calendario.Find(Function(y) y.giorno = giorno).giorno OrElse Field_Null(x.data))
+                Dim vincolo As Vincolo = vinc
+
+                If vincoli_tolti.FindIndex(Function(x) x.cod_art = vincolo.cod_art) <> -1 Then
+
+                    If Not linea_des.Inserisci_Vincolo(vinc, giorno) Then Return False
+                End If
+            Next
+
+            'Compatto il giorno
+            linea_des.Compatta_Seq_Giorno(Calendario.Find(Function(x) x.giorno = giorno).giorno)
+            Return True
+        End Function
+
+        'Controllo se valgono i vincoli del problema nel giorno indicato
+        Public Function Controlla_Vincoli(ByVal giorno As Date, ByVal i_lin As Integer)
+            Dim sequenze As List(Of Seq_Pian) = Linee(i_lin).pianificazione.FindAll(Function(x) x.giorno = giorno)
+
+            If sequenze.Count = 0 Then Return True
+
+            'Controllo che non sia superato il tempo totale di produzione del giorno
+            Dim tempo_totale_p As Long = 0
+            For Each seq In sequenze
+                tempo_totale_p += seq.Durata()
+            Next
+
+            Dim tempo_totale_g As Long = Linee(i_lin).calendario.Find(Function(x) x.giorno = giorno).Tempo_Totale()
+            If tempo_totale_p > tempo_totale_g Then Return False
+
+            'Per ogni ordine controllo se viene prodotto in tempo
+            For Each seq In sequenze
+                For Each elem In seq.elementi
+                    If Not elem.isVinc() Then
+                        'Controllo se la data di spedizione è rispettata, se non lo è non posso aggiungere la sequenza
+                        If giorno >= elem.ordine.data_spedizione_ordcli Then
+                            If giorno = elem.ordine.data_spedizione_ordcli Then
+                                Dim ora As String = elem.ordine.ora_spedizione_ordcli
+                                If Field_Null(ora) OrElse
+                                    StringToSec(ora) > Linee(i_lin).calendario.Find(Function(x) x.giorno = giorno).Orario_Reale(seq.Ora_Inizio_Produzione(elem), seq.Ora_Fine_Produzione(elem)).ora_fine_sec Then Return False
+                            Else : Return False
+                            End If
+                        End If
+                    End If
+                Next
+            Next
+
+            'Controllo che tutti i vincoli linea delle operazioni siano rispettati
+            For Each vinc In Linee(i_lin).vincoli_linea
+                If vinc.tipo_vinc = "OPE" Then
+                    Dim trovato = False
+                    If vinc.vinc_obb = True Then
+                        For Each seq In sequenze
+                            If seq.cod_seq = "0" AndAlso seq.elementi(0).vincolo.cod_art = vinc.cod_art Then
+                                trovato = True
+                                Exit For
+                            End If
+                        Next
+                    Else
+                        For Each seq In sequenze
+                            If seq.cod_seq = "0" AndAlso seq.elementi(0).vincolo.cod_art = vinc.cod_art Then
+                                trovato = True
+                                Exit For
+                            Else
+                                For Each elem In seq.elementi
+                                    If elem.isVinc() AndAlso elem.vincolo.cod_art = vinc.cod_art Then
+                                        trovato = True
+                                        Exit For
+                                    End If
+                                Next
+                                If trovato = True Then Exit For
+                            End If
+                        Next
+                    End If
+                    If trovato = False Then Return False
+                End If
+            Next
+
+            'Controllo che non vi siano sovrapposizioni
+            For i As Integer = 0 To sequenze.Count - 1
+                If i <> sequenze.Count - 1 Then
+                    If sequenze(i).ora_fine >= sequenze(i + 1).ora_inizio Then Return False
+                End If
+            Next
+
+            'Controllo che non si sfori la fine dell'orario lavorativo del giorno
+            If sequenze.Last.ora_fine > Linee(i_lin).calendario.Find(Function(x) x.giorno = giorno).Ora_Fine() Then Return False
+
+            Return True
+        End Function
+
+        Function Modifica_Vincoli_Seq(ByRef linea As Linea, ByVal i_seq As Integer)
+
+            'Nessuna sequenza precedente da controllare
+            If i_seq = 0 Then Return True
+
+            'Nessuna sequenza successiva da controllare
+            If i_seq >= linea.pianificazione.Count Then Return True
+
+            'Sequenza composta da un solo vincolo
+            If linea.pianificazione(i_seq).cod_seq = "0" Then Return True
+
+            Dim cod_lin As String = linea.cod_linea_prod
+            Dim giorni_modificati As List(Of Date) = New List(Of Date)
+            Dim seq As Seq_Pian = linea.pianificazione(i_seq)
+            Dim i_seq_prec As Integer = linea.Trova_Seq_Precedente(i_seq)
+            Dim sequenza As Sequenza = linea.sequenze_linea.Find(Function(x) x.cod_seq = seq.cod_seq)
+
+            'Se non ci sono sequenze di produzione precedenti, ritorno true
+            If i_seq_prec = i_seq OrElse linea.pianificazione(i_seq_prec).cod_seq = "0" Then Return True
+
+            For Each elem In seq.elementi
+                Dim elemento As Elemento = elem
+                If elem.isVinc() Then
+                    Dim info As Info_Vinc = linea.info_vinc.Find(Function(x) x.cod_art = elemento.vincolo.cod_art)
+                    If info.tipo_art = "seq" AndAlso (i_seq_prec = -1 OrElse linea.pianificazione(i_seq_prec).cod_seq <> info.cod_dep_linea) Then
+                        seq.ora_fine -= elem.sec_lav - 1
+                        seq.elementi.Remove(elem)
+                    End If
+                End If
+            Next
+
+            If Not IsNothing(sequenza) Then
+                For Each art In sequenza.articoli
+                    Dim articolo As Articolo = art
+                    If art.vincolo = True AndAlso art.tipo_art = "seq" AndAlso linea.pianificazione(i_seq_prec).cod_seq = art.cod_seqprod_cond Then
+                        Dim info As Info_Vinc = linea.info_vinc.Find(Function(x) x.cod_art = articolo.cod_art)
+                        Dim index As Integer = seq.elementi.FindLastIndex(Function(x) x.isVinc AndAlso x.vincolo.tipo_art = "seq" AndAlso x.ord_ris <= articolo.seq_ordine) + 1
+                        seq.elementi.Insert(index, New Elemento(art, info.sec_lav))
+                        seq.ora_fine += info.sec_lav + 1
+                    End If
+                Next
+            End If
+            If Not Trasla_Pianificazione(i_seq, linea, giorni_modificati) Then Return False
+
+            For Each gior In giorni_modificati
+                If Controlla_Vincoli(gior, Linee.FindIndex(Function(x) x.cod_linea_prod = cod_lin)) = False Then Return False
+            Next
+
+            Return True
+        End Function
+
+
+        'Ritorna un valore che indica la bontà della soluzione
+        Function Valutazione(ByRef ordini As List(Of Ordine), Optional ByRef sw1 As StreamWriter = Nothing)
+
+            Dim r_pz As Double = Totale_Pz_Prodotti() / Totale_Pz_Richiesti(ordini) * peso_art
+            Dim r_occ As Double = Occupazione_linee() / Tempo_Totale() * peso_occ
+            Dim r_temp As Double = Fine_Produzione() / Tempo_Produzione() * peso_tempo
+
+            'sw.WriteLine("rapporto pz/tot: " & r_pz & " rapporto occ/tot: " & r_occ & " rapporto tempo/tot: " & r_temp & " totale: " & r_pz - r_occ - r_temp)
+            'sw1.WriteLine("rapporto pz/tot: " & r_pz & " rapporto occ/tot: " & r_occ & " rapporto tempo/tot: " & r_temp & " totale: " & r_pz - r_occ - r_temp)
+
+            Return r_pz - r_occ - r_temp
+            'Return r_pz + r_occ + r_temp
+
+        End Function
+
+        'Confronto la soluzione corrente con una soluzione data, e ritorno true se la soluzione data è migliorativa o rispetta i criteri di aspirazione
+        Public Function Confronta_Soluzione(ByVal val_best_sol As Double, ByRef soluzione As Soluzione, ByRef val_sol As Double, ByRef ordini As List(Of Ordine), ByRef sw As StreamWriter)
+
+            val_sol = soluzione.Valutazione(ordini, sw)
+
+            'Se la nuova soluzione è migliore della precedente, ritorno true
+            If val_best_sol < val_sol Then Return True
+
+            Dim delta As Double = val_best_sol - val_sol
+
+            'Se le soluzioni sono comparabili (differiscono di meno del 2%) allora valuto criteri di aspirazione
+            If delta / val_best_sol * 100 <= 2 Then
+
+                'Se ciò che l'utente vuole valorizzare è il numero di pezzi prodotti, allora se la nuova domanda è minore della vecchia (ho prodotto più ordini), ritorno true
+                If peso_art >= peso_occ AndAlso peso_art >= peso_tempo Then
+                    If soluzione.Domanda.Count < Domanda.Count Then Return True
+                    Return False
+
+                    'Se ciò che l'utente vuole valorizzare è la minor occupazione delle linee, allora ho più linee vuote, ritorno true
+                ElseIf peso_occ >= peso_art AndAlso peso_occ >= peso_tempo Then
+                    If soluzione.Linee_Vuote() > Linee_Vuote() Then Return True
+                    Return False
+
+                    'Se ciò che l'utente vuole valorizzare è il tempo totale di produzione, allora se la nuova domanda presenta meno spazi vuoti, ritorno true
+                ElseIf peso_tempo >= peso_art AndAlso peso_tempo >= peso_occ Then
+                    If Vuoti() > soluzione.Vuoti() Then Return True
+                    Return False
+
+                    'Se tutti i pesi sno uguali, controllo tutte e tre le condizioni
+                End If
+            End If
+
+            Return False
+        End Function
+
+        'Ritorno il numero di linee vuote nella soluzione
+        Public Function Linee_Vuote()
+            Dim lin_vuote As Integer = 0
+            For Each lin In Linee
+                If lin.IsEmpty() Then lin_vuote += 1
+            Next
+            Return lin_vuote
+        End Function
+
+        'Verifico se i limiti orari giornalieri sono rispettati
+        Public Function Controllo_Limiti_Orari()
+            For Each lin In Linee
+                For Each gio In lin.calendario
+                    Dim giorno As Giorno = gio
+                    Dim index As Integer = lin.pianificazione.FindLastIndex(Function(x) x.giorno = giorno.giorno)
+                    If index <> -1 AndAlso lin.pianificazione(index).ora_fine > gio.Ora_Fine() Then Return False
+                Next
+            Next
+            Return True
+        End Function
+
+        'Ritorno il totale del tempo non produttivo tra un ordine e il successivo
+        Public Function Vuoti()
+
+            Dim tempo_non_prod As Double = 0
+
+            For Each lin In Linee
+                'Se la linea è vuota il tempo non produttivo va aumentato del tempo totale
+                If lin.IsEmpty Then tempo_non_prod += lin.calendario.Count * 86400
+
+                For Each gio In lin.calendario
+
+                    'Se non ci sono sequenze produttive nel giorno ho finito
+                    If lin.pianificazione.FindIndex(Function(x) x.cod_seq <> "0") = -1 Then Continue For
+
+                    Dim giorno As Date = gio.giorno
+                    Dim tempo_prod As Long = 0
+
+                    'Calcolo il tempo produttivo del giorno
+                    For Each seq In lin.pianificazione.FindAll(Function(x) x.giorno = giorno)
+                        tempo_prod += seq.Durata()
+                    Next
+
+                    'Calcolo il tmepo non produttivo del giorno
+                    If Giorno_Successivo(giorno, Calendario) > Calendario.Last.giorno OrElse lin.pianificazione.FindIndex(Function(x) x.giorno >= Giorno_Successivo(giorno, Calendario) AndAlso x.cod_seq <> "0") = -1 Then
+                        tempo_non_prod += gio.Tempo_Totale - tempo_prod - lin.calendario.Find(Function(x) x.giorno = giorno).Ora_Fine() - lin.pianificazione.FindLast(Function(x) x.giorno = giorno AndAlso x.cod_seq <> "0").ora_fine
+                        Exit For
+                    Else
+                        tempo_non_prod += gio.Tempo_Totale() - tempo_prod
+                    End If
+                Next
+            Next
+
+            Return tempo_non_prod
+        End Function
+
+        'Cerco dove possibile di traslare le sequenze in modo da ridurre i vuoti nella pianificazione
+        Public Sub Compatta_Soluzione()
+            For i_lin As Integer = 0 To Linee.Count - 1
+
+                For i As Integer = 1 To Linee(i_lin).pianificazione.Count - 1
+
+                    If Linee(i_lin).pianificazione(i).cod_seq = "0" Then Continue For
+
+                    Dim old_lin As Linea = Linee(i_lin).Copy()
+                    Dim old_day As Date = Linee(i_lin).pianificazione(i).giorno
+                    Dim prec As Integer = i - 1
+                    While prec >= 0 AndAlso Linee(i_lin).pianificazione(prec).cod_seq = "0"
+                        prec -= 1
+                    End While
+
+                    If prec = -1 Then
+                        'Se la sequenza non ha precedenti, la pongo all'inizio del primo giorno libero
+                        Dim seq = Linee(i_lin).pianificazione(i).Copy()
+
+                        Linee(i_lin).pianificazione.RemoveAt(i)
+
+                        seq.giorno = Linee(i_lin).calendario(0).giorno
+                        seq.ora_inizio = Linee(i_lin).calendario(0).Ora_Inizio
+                        seq.ora_fine = Linee(i_lin).pianificazione(i).ora_inizio + Linee(i_lin).pianificazione(i).Durata()
+
+                        Linee(i_lin).pianificazione.Insert(0, seq)
+
+                        If Not Controlla_Vincoli(Linee(i_lin).pianificazione(0).giorno, i_lin) Then Linee(i_lin) = old_lin
+                    Else
+                        'Se la linea ha precedente, la pongo nel primo spazio vuoto libero
+                        If Linee(i_lin).pianificazione(i).giorno <> Linee(i_lin).pianificazione(prec).giorno Then
+
+                            Linee(i_lin).pianificazione(i).giorno = Linee(i_lin).pianificazione(prec).giorno
+                            Linee(i_lin).pianificazione(i).ora_inizio = Linee(i_lin).pianificazione(prec).ora_fine + 1
+                            Linee(i_lin).pianificazione(i).ora_fine = Linee(i_lin).pianificazione(i).ora_inizio + Linee(i_lin).pianificazione(i).Durata()
+
+                            If Not Controlla_Vincoli(Linee(i_lin).pianificazione(i).giorno, i_lin) Then
+
+                                If Giorno_Successivo(Linee(i_lin).pianificazione(i).giorno, Calendario) <> old_day Then
+                                    Linee(i_lin).pianificazione(i).giorno = Giorno_Successivo(Linee(i_lin).pianificazione(i).giorno, Calendario)
+                                    Linee(i_lin).pianificazione(i).ora_inizio = Linee(i_lin).calendario.Find(Function(x) x.giorno = Linee(i_lin).pianificazione(i).giorno).Ora_Inizio()
+                                    Linee(i_lin).pianificazione(i).ora_fine = Linee(i_lin).pianificazione(i).ora_inizio + Linee(i_lin).pianificazione(i).Durata()
+                                Else
+                                    Linee(i_lin) = old_lin
+                                End If
+                            End If
+                        End If
+                    End If
+                Next
+
+            Next
+
+        End Sub
+
+        'Funzione che valida una soluzione controllando i vincoli
+        Public Function Valida_Soluzione()
+
+            For Each lin In Linee
+                For Each pian In lin.pianificazione
+                    If pian.ora_fine - pian.ora_inizio <> pian.Durata() Then
+                        Return False
+                    End If
+                Next
+            Next
+
+
+            If Tempo_Produzione_Giornaliero() = False Then Return False
+
+            If Controllo_Limiti_Orari() = False Then Return False
+
+            For Each lin In Linee
+                If lin.Disordine OrElse lin.Sovrapposizioni() Then Return False
+            Next
+
+            'Controlla che le sequenze di vincoli linea siano composte da un solo elemento
+            For Each gio In Calendario
+                Dim count = 0
+                For Each seq In Linee(0).pianificazione.FindAll(Function(x) x.giorno = gio.giorno)
+                    If seq.cod_seq = "0" Then count += 1
+                Next
+                If count <> 1 Then
+                    Return False
+                End If
+            Next
+
+            'Controlla i vinocli giornalieri
+            For i As Integer = 0 To Linee.Count - 1
+                For Each gio In Calendario
+                    If Not Controlla_Vincoli(gio.giorno, i) Then
+                        Return False
+                    End If
+                Next
+            Next
+            Return True
+        End Function
+
+        'Calcola il tempo di produzione di ogni giorno nella linea e ritorna false se questo supera il tempo totale di produzione del giorno
+        Public Function Tempo_Produzione_Giornaliero()
+            For Each lin In Linee
+
+                Dim datigiorno As List(Of DG) = New List(Of DG)
+
+                For Each pian In lin.pianificazione
+                    Dim pianif As Seq_Pian = pian
+                    If datigiorno.FindIndex(Function(x) x.giorno = pianif.giorno) = -1 Then
+                        datigiorno.Add(New DG With {.giorno = pian.giorno, .tempo = pian.Durata()})
+                    Else
+                        datigiorno.Find(Function(x) x.giorno = pianif.giorno).tempo += pian.Durata()
+                    End If
+                Next
+
+                For Each dati In datigiorno
+                    Dim use = dati
+                    If use.tempo > lin.calendario.Find(Function(x) x.giorno = use.giorno).Tempo_Totale() Then
+                        Return False
+                    End If
+                Next
+            Next
+
+            Return True
+        End Function
+
+    End Class
+    'serve sia a verificare la possibilità di produrre un ordine sia a togliere la giacenza dal magazzino,
+    'se il flag è passato a false esegue solo il controllo
+    'se il flag è passato a true sottrae le materie dal magazzino
+    Public Function Sottrai_giacenza(ByVal ordine As Ordine, ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine),
+                                     ByRef ordini_fornitori As Ordini_Fornitori, ByVal miglior_linea As Linea, Linee As List(Of Linea),
+                                     ByVal flag As Boolean, ByVal check As Boolean, ByRef giorno_arrivo As Date)
+        Dim diff As Double = Nothing
+        Dim trovato As Boolean = False
+
+        'controllo per materie prime
+        If ordine.mat_prime.Count <> 0 Then
+            If Sottrai_mat_prime(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, miglior_linea, Linee, flag, check, giorno_arrivo, trovato) = False Then
+                Return False
+            End If
+        End If
+
+        'controllo per semilavorati
+        If ordine.semi_lavorati.Count <> 0 Then
+            If Sottrai_sl(ordine, giacenze_mag, ordini_semilavorati, ordini_fornitori, miglior_linea, Linee, flag, check, giorno_arrivo, trovato) = False Then
+                Return False
+            End If
+
+            If trovato = False Then Return False 'se non trovo il corrispondente cod_art nelle giacenze significa che non posso produrre l alrticolo
+        End If
+
+        If trovato = False Then Return False 'se non trovo il corrispondente cod_art nelle giacenze significa che non posso produrre l alrticolo
+
+        'fino a qui ho tolto tutti gli articoli non producibili per mancanza di materie prime/semilavorati
+        Return True
+
+    End Function
+    Public Function Sottrai_sl(ByVal ordine As Ordine, ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine),
+                                     ByRef ordini_fornitori As Ordini_Fornitori, ByVal miglior_linea As Linea, Linee As List(Of Linea),
+                                     ByVal flag As Boolean, ByVal check As Boolean, ByRef giorno_arrivo As Date, ByRef trovato As Boolean)
+
+        'controllo per semilavorati
+        Dim copia = giacenze_mag.giacenze 'la uso per scorrere le materie prime nel controllo di produzione dei semilavorati
+        For Each ele As Giacenza In giacenze_mag.giacenze
+            Dim disponibile = ele.qta_gia
+            Dim temp As List(Of Distinta_base) = ordine.semi_lavorati 'lista dei semilavorati dell'ordine corrente
+            For Each uso As Distinta_base In temp
+                If uso.cod_art_db = ele.cord_art_gia Then
+                    trovato = True
+                    If disponibile >= uso.qta_db Then
+                        If flag = True Then
+                            disponibile -= uso.qta_db
+                        End If
+                    Else
+                        'controllo se posso produrre il semilavorato in base alle materie prime presenti
+                        Dim find = False
+                        For Each sl In ordini_semilavorati
+                            If sl.cod_art = uso.cod_art_db Then
+                                For Each uso1 In sl.mat_prime
+                                    For Each materia In copia
+                                        If materia.cord_art_gia = uso1.cod_art_db Then
+                                            Dim appoggio As Double
+                                            appoggio = giacenze_mag.giacenze.Find(Function(x) x.cord_art_gia = materia.cord_art_gia).qta_gia
+                                            Dim qta_temp As Long = 0
+                                            If ordini_fornitori.forniture.FindIndex(Function(x) x.cod_art_f = materia.cord_art_gia) <> -1 Then qta_temp = ordini_fornitori.forniture.Find(Function(x) x.cod_art_f = materia.cord_art_gia).qta_f
+                                            'If appoggio + qta_temp >= (uso.qta_db * uso1.qta_db) Then
+                                            'If ordine.tipo_art = "SL" Then
+                                            '    uso1.qta_db = uso1.qta_db * uso.qta_db
+                                            'End If
+                                            Dim qta_mat_prime As Long = 0
+                                            ' uso1.qta_db = uso1.qta_db * uso.qta_db
+                                            qta_mat_prime = uso1.qta_db * uso.qta_db
+                                            If appoggio + qta_temp >= uso1.qta_db Then
+                                                trovato = True
+                                                If flag = True Then
+                                                    disponibile = 0 'setto a 0 in quanto esaurisco i sl a disposizione
+                                                End If
+                                                If check = True Then
+                                                    If find = False Then
+                                                        sl.qta_pz = uso.qta_db - disponibile 'aggiungo la qtà da produrre sui sl
+                                                    End If
+
+                                                    If Not IsNothing(miglior_linea) Then
+                                                        If miglior_linea.info_art.FindIndex(Function(x) x.cod_art = uso.cod_art_db) <> -1 Then
+                                                            Dim divisore = miglior_linea.info_art.Find(Function(x) x.cod_art = uso.cod_art_db).pz_ora
+                                                            'Dim tempo = (uso.qta_db * uso1.qta_db) / divisore
+                                                            Dim tempo = (uso.qta_db * qta_mat_prime) / divisore
+                                                            Dim myDateTime As TimeSpan = TimeSpan.FromHours(tempo)
+                                                            sl.data_spedizione_ordcli = ordine.data_spedizione_ordcli - myDateTime 'assegno al semilavorato la data di consegna dell'ordine che lo contiene - il tempo per produrre l'ordine
+                                                        Else
+                                                            Return False
+                                                        End If
+                                                    Else
+                                                        find = False
+                                                        For Each lin In Linee
+                                                            If lin.info_art.FindIndex(Function(x) x.cod_art = uso.cod_art_db) <> -1 Then
+                                                                Dim divisore = lin.info_art.Find(Function(x) x.cod_art = uso.cod_art_db).pz_ora
+                                                                'Dim tempo = (uso.qta_db * uso1.qta_db) / divisore
+                                                                Dim tempo = (uso.qta_db * qta_mat_prime) / divisore
+                                                                Dim myDateTime As TimeSpan = TimeSpan.FromHours(tempo)
+                                                                sl.data_spedizione_ordcli = ordine.data_spedizione_ordcli - myDateTime 'assegno al semilavorato la data di consegna dell'ordine che lo contiene - il tempo per produrre l'ordine
+                                                                find = True
+                                                            ElseIf lin.info_art.FindIndex(Function(x) x.tipo_art = "SL") <> -1 Then
+                                                                Dim divisore = lin.info_art.Find(Function(x) x.tipo_art = "SL").pz_ora
+                                                                'Dim tempo = (uso.qta_db * uso1.qta_db) / divisore
+                                                                Dim tempo = (uso.qta_db * qta_mat_prime) / divisore
+                                                                Dim myDateTime As TimeSpan = TimeSpan.FromHours(tempo)
+                                                                sl.data_spedizione_ordcli = ordine.data_spedizione_ordcli - myDateTime 'assegno al semilavorato la data di consegna dell'ordine che lo contiene - il tempo per produrre l'ordine
+                                                                find = True
+                                                            End If
+                                                        Next
+                                                        If find = False Then Return False
+                                                    End If
+                                                End If
+                                            Else
+                                                Dim trovato_f = False
+                                                'controllo se ho in arrivo del materiale
+                                                For Each forn In ordini_fornitori.forniture
+                                                    If forn.cod_art_f = uso.cod_art_db Then
+                                                        If forn.qta_f + disponibile >= uso.qta_db Then
+                                                            trovato_f = True
+                                                            'If giorno_arrivo < forn.data_f Then giorno_arrivo = forn.data_f
+                                                            giorno_arrivo = forn.data_f
+                                                            If Not IsNothing(miglior_linea) = True Then 'se sto cercando di pianificare devo sottrarre la qta
+                                                                For Each pian In miglior_linea.pianificazione
+                                                                    For Each elem In pian.elementi
+                                                                        If Not elem.isVinc Then
+                                                                            For Each mat_p In elem.ordine.mat_prime
+                                                                                If mat_p.cod_art_db = forn.cod_art_f Then
+                                                                                    If pian.giorno > forn.data_f Then 'se l'ordine che sto provando a produrre è successivo all'arrivo di materie prime allora lo posso produrre
+                                                                                        If forn.qta_f > uso.qta_db Then
+                                                                                            forn.qta_f -= uso.qta_db
+                                                                                        Else
+                                                                                            disponibile += forn.qta_f
+                                                                                            forn.qta_f = 0
+                                                                                            disponibile -= uso.qta_db
+                                                                                        End If
+                                                                                    Else
+                                                                                        Return False
+                                                                                    End If
+                                                                                End If
+                                                                            Next
+                                                                        End If
+                                                                    Next
+                                                                Next
+                                                            End If
+                                                        End If
+                                                    End If
+                                                Next
+                                                If trovato_f = False Then
+                                                    sl.qta_pz = 0
+                                                    Return False 'l'articolo non ha sufficienti materie prime per essere prodotto
+                                                End If
+                                                'l'articolo non ha sufficienti semilavorati per essere prodotto
+                                            End If
+                                        End If
+                                    Next
+                                Next
+                                If check = True Then
+                                    ordine.riferimento_ordine.Add(sl) ' aggiungo all'ordine il semilavorato figlio
+                                    sl.riferimento_ordine.Add(ordine) 'aggiungo l'ordine come padre del semilavorato
+                                End If
+                            End If
+                        Next
+                        'If find = False Then Return False
+                    End If
+                End If
+            Next
+            ele.qta_gia = disponibile
+        Next
+
+        Return True
+
+    End Function
+
+    Public Function Sottrai_mat_prime(ByVal ordine As Ordine, ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine),
+                                     ByRef ordini_fornitori As Ordini_Fornitori, ByVal miglior_linea As Linea, Linee As List(Of Linea),
+                                     ByVal flag As Boolean, ByVal check As Boolean, ByRef giorno_arrivo As Date, ByRef trovato As Boolean)
+
+        For Each ele As Giacenza In giacenze_mag.giacenze
+            Dim disponibile As Double = ele.qta_gia
+            'controllo per materie prime
+            Dim temp2 As List(Of Distinta_base) = ordine.mat_prime 'lista delle materie prime dell'ordine corrente
+            For Each uso As Distinta_base In temp2
+                If uso.cod_art_db = ele.cord_art_gia Then
+                    trovato = True
+
+                    Dim temp = uso.qta_db
+                    If ordine.tipo_art = "SL" Then
+                         temp = uso.qta_db * ordine.qta_pz
+                        'uso.qta_db = uso.qta_db * ordine.qta_pz
+                    End If
+
+                    If disponibile >= temp Then
+                        If flag = True Then
+                            disponibile -= temp
+                        End If
+                    Else
+                        Dim trovato_f = False
+                        'controllo se ho in arrivo del materiale
+                        For Each forn In ordini_fornitori.forniture
+                            If forn.cod_art_f = uso.cod_art_db Then
+                                If forn.qta_f + disponibile >= temp Then
+                                    trovato_f = True
+                                    giorno_arrivo = forn.data_f
+                                    If Not IsNothing(miglior_linea) = True Then 'se sto cercando di pianificare devo sottrarre la qta
+                                        For Each pian In miglior_linea.pianificazione
+                                            For Each elem In pian.elementi
+                                                If Not elem.isVinc Then
+                                                    If elem.ordine.cod_art = ordine.cod_art Then
+                                                        For Each mat_p In elem.ordine.mat_prime
+                                                            If mat_p.cod_art_db = forn.cod_art_f Then
+                                                                If pian.giorno > forn.data_f Then 'se l'ordine che sto provando a produrre è successivo all'arrivo di materie prime allora lo posso produrre
+                                                                    If forn.qta_f > temp Then
+                                                                        forn.qta_f -= temp
+                                                                        forn.qta_f += disponibile
+                                                                        disponibile = 0
+                                                                    Else
+                                                                        disponibile += forn.qta_f
+                                                                        forn.qta_f = 0
+                                                                        disponibile -= temp
+                                                                    End If
+                                                                Else
+                                                                    Return False
+                                                                End If
+                                                            End If
+                                                        Next
+                                                    End If
+                                                End If
+                                            Next
+                                        Next
+                                    End If
+                                End If
+                            End If
+                        Next
+                        If trovato_f = False Then Return False 'l'articolo non ha sufficienti materie prime per essere prodotto
+                    End If
+                End If
+            Next
+            ele.qta_gia = disponibile
+        Next
+
+        Return True
+
+    End Function
+
+    'Algoritmo Greedy per il calcolo della soluzione iniziale
+    Function Soluzione_Iniziale(ByRef soluzione_vuota As Soluzione, ByRef giacenze_mag As Giacenze_Magazzino, ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori)
+
+        Dim soluzione As Soluzione = soluzione_vuota.Copy()
+
+        For Each lin In soluzione.Linee
+            If lin.cod_linea_prod <> "" Then
+                lin.Compatta_Info_Art(soluzione.Domanda)  'Per ogni sequenza mantengo una sola info_art per articolo ordinato, privilegiando la più precisa come classificazione
+                lin.Elimina_Info_Non_Prod()
+                lin.Elimina_Art_Sequenze()
+                lin.Inserisci_Vincoli_Linea() 'Inserisco tutti i vincoli linea nella sequenza
+            End If
+        Next
+
+        soluzione.Verifica_Producibilita_Art(giacenze_mag, ordini_semilavorati, ordini_fornitori) 'Elimino gli articoli non producibili dalla domanda
+
+        soluzione.Domanda.OrderBy(Function(x) x.data_spedizione_ordcli) 'Ordino gli ordini in base alla data di spedizione, dal minore al maggiore
+
+        Dim Allocati As List(Of Ordine) = New List(Of Ordine)
+
+        Allocati = Greedy_Function(soluzione.Domanda, soluzione.Linee, Allocati, giacenze_mag, ordini_semilavorati, ordini_fornitori, True, soluzione, Nothing)
+        'se arrivo qui significa che ho allocato gli ordini
+
+        'rimuovo gli ordini che ho allocato dalla domanda
+        For Each ord In Allocati
+            soluzione.Domanda.Remove(ord)
+        Next
+
+        'rimuovo gli ordini con qta = 0 che sono quelli non allocabili
+        Allocati.Clear()
+        For Each zero In soluzione.Domanda
+            If zero.qta_pz = 0 Then
+                Allocati.Add(zero)
+            End If
+        Next
+        For Each ord In Allocati
+            soluzione.Domanda.Remove(ord)
+        Next
+
+        Return soluzione
+    End Function
+    Public Function Greedy_Function(ByVal soluzione As List(Of Ordine), ByRef Linee As List(Of Linea), ByVal Allocati As List(Of Ordine), ByRef giacenze_mag As Giacenze_Magazzino,
+                                    ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori,
+                                    ByRef check As Boolean, ByRef soluzione_vuota As Soluzione,
+                                    ByRef giorno_arrivo As Date)
+
+        For Each dom In soluzione
+            Dim ordine As Ordine = dom
+            Dim ora_i As Long = -1
+            Dim giorno As Date = Nothing
+
+            'ottengo tutti i semilavorati da produrre dell'ordine corrente e provo a produrli
+            If check = True Then
+                If Sottrai_giacenza(dom, giacenze_mag, ordini_semilavorati, ordini_fornitori, Nothing, Linee, False, True, giorno_arrivo) Then 'passo la prima linea, il controllo qui non viene effettuato
+                    If dom.riferimento_ordine.Count <> 0 Then
+                        Allocati = Greedy_Function(dom.riferimento_ordine, Linee, Allocati, giacenze_mag, ordini_semilavorati, ordini_fornitori, False, soluzione_vuota, giorno_arrivo)
+                        If Allocati.Count = 0 Then 'se non ho prodotto almeno uno dei semilavorati non posso produrre l'ordine
+                            Elimina_pianificati(dom, Linee, soluzione_vuota, giacenze_mag)
+                            dom.qta_pz = 0 'soluzione momentanea per non far produrre l'articolo, verrà rimosso al ritorno degli allocati
+                            Continue For
+                        End If
+                        Get_ultimo_sl(Linee, ora_i, giorno, dom) 'trovo il giorno e l'ora di fine dell'ultimo semilavorato
+                    End If
+                Else
+                    Continue For
+                End If
+            End If
+
+            'trovo l'ultima data di consegna degli ordini fornitori riguardanti l'ordine del PF
+            If dom.tipo_art = "PF" Then
+                Sottrai_giacenza(dom, giacenze_mag, ordini_semilavorati, ordini_fornitori, Nothing, Linee, False, False, giorno_arrivo)
+
+            End If
+
+            Dim miglior_rapporto_pz_sec As Double = 0
+            Dim miglior_linea As Linea = New Linea
+            Dim miglior_alloc As List(Of Ordine) = New List(Of Ordine)
+
+            For Each lin In Linee
+
+                If lin.info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) = -1 Then 'cerco per codice
+                    If lin.info_art.FindIndex(Function(x) x.tipo_art = ordine.tipo_art) = -1 Then 'cerco per tipo 
+                        Continue For 'Se non posso produrre l'articolo nella linea provo con la successiva
+                    End If
+                End If
+
+                Dim miglior_rapporto_pz_sec_lin As Double = 0
+                Dim miglior_durata_nuova_seq As Long = 0
+                Dim miglior_durata_seq_pianificata As Long = 0
+                Dim aggiungere_lin As Integer = -1
+                Dim new_linea As Linea = New Linea
+                new_linea = lin.Copy()
+                Dim best_seq As List(Of Integer) = lin.Migliori_Seq(ordine) 'Nuova sequenza migliore
+                Dim new_allocati As List(Of Ordine) = Allocati.Select(Function(item) item.Copy()).OfType(Of Ordine).ToList()
+                Dim index As Integer = -1
+                Dim i_best_seq = 0
+
+                aggiungere_lin = lin.Pianificato(ordine, miglior_durata_seq_pianificata) 'Controllo se c'è spazio tra le sequenze già presenti, e se c'è segno il tempo che sarebbe aggiunto alla linea
+
+                While index = -1 AndAlso i_best_seq < best_seq.Count 'se ho delle sequenze dove lo posso produrre
+
+                    miglior_durata_nuova_seq = lin.Durata_Sequenza(new_linea.sequenze_linea(best_seq(i_best_seq)), ordine) 'Durata della migliore nuova sequenza
+
+                    If miglior_durata_seq_pianificata < miglior_durata_nuova_seq Then 'Se c'è la seq già pianificata è migliore di qualsiasi nuova aggiunta
+
+                        If new_linea.Aggiungi_Art(aggiungere_lin, ordine, -1, Nothing) Then 'aggiungo l'articolo alla pianificazione
+                            miglior_rapporto_pz_sec_lin = miglior_durata_seq_pianificata / ordine.qta_pz
+                            Exit While
+                        End If
+                        new_linea = lin.Copy() ' Se non è possibile inserirla resetto la nuova linea
+                    End If
+
+                    If giorno >= giorno_arrivo Then 'devo vedere se è maggiore il giorno di arrivo di materiali o quello di produzione di sl
+                        index = new_linea.Aggiungi_Seq_Art(best_seq(i_best_seq), ordine, giorno, ora_i) 'Aggiungo la nuova sequenza
+                    Else
+                        index = new_linea.Aggiungi_Seq_Art(best_seq(i_best_seq), ordine, giorno_arrivo.AddDays(1), ora_i) 'Aggiungo la nuova sequenza
+                    End If
+                    Dim qta_pz_prod = ordine.qta_pz
+
+                    If index <> -1 Then 'Se l'ho aggiunta calcolo il nuovo rapporto
+                        Dim i_dom As Integer = soluzione.FindIndex(Function(x) x.IsEqual(ordine)) + 1
+                        miglior_rapporto_pz_sec_lin = qta_pz_prod / new_linea.pianificazione(index).Durata()
+                    End If
+                    i_best_seq += 1
+                End While
+
+                If miglior_rapporto_pz_sec_lin > miglior_rapporto_pz_sec Then 'Se il rapporto pz/sec trovato è migliore di quello massimo precedente, aggiorno il migliore con quello corrente
+                    miglior_rapporto_pz_sec = miglior_rapporto_pz_sec_lin
+                    miglior_linea = new_linea
+                    miglior_alloc = new_allocati
+                End If
+            Next
+            'Se ho trovato una linea dove produrre aggiorno la miglior linea con quella trovata
+            If Not IsNothing(miglior_linea.cod_linea_prod) Then
+                If Sottrai_giacenza(dom, giacenze_mag, ordini_semilavorati, ordini_fornitori, miglior_linea, Linee, True, False, Nothing) Then ' eseguo il controllo di producibilità sull'articolo corrente 
+                    Linee(Linee.FindIndex(Function(x) x.cod_linea_prod = miglior_linea.cod_linea_prod)) = miglior_linea 'Aggiorno la linea prescelta con la linea aggiornata
+                    Allocati.Add(dom)
+                Else
+                    'se non ho prodotto il PF elimino i SL
+                    Elimina_pianificati(dom, Linee, soluzione_vuota, giacenze_mag)
+                End If
+            ElseIf check = False Then 'se non sono riuscito a produrre un semilavorato devo ritornarne la lista vuota di sl
+                Allocati.Clear()
+                'Elimina_pianificati(dom, Linee, soluzione_vuota, giacenze_mag)
+                Exit For 'esco dal ciclo for per non provare a produrre gli altri sl
+            End If
+        Next
+        check = True
+        Return Allocati
+    End Function
+    'elimina gli ordini dei semilvaorati pianificati facendo riferimento all'ordine passato come parametro
+    Public Sub Elimina_pianificati(ByVal ordine As Ordine, ByRef Linee As List(Of Linea), ByRef soluzione As Soluzione, ByRef giacenze_mag As Giacenze_Magazzino)
+        Dim i_seq As Integer = 0
+        Dim i_art As Integer = 0
+        Dim vinc As List(Of Integer) = Nothing
+        Dim seq As List(Of Integer) = Nothing
+
+        For Each lin In Linee
+            i_seq = 0
+            For Each pian In lin.pianificazione
+                i_art = 0
+                For Each ele In pian.elementi
+                    If Not ele.isVinc() Then
+                        If ele.ordine.cod_art = ordine.cod_art AndAlso ele.ordine.qta_pz = ordine.qta_pz AndAlso ele.ordine.nr_ord = ordine.nr_ord Then
+                            Aggiungi_giacenza_mat(ordine, giacenze_mag)
+                            soluzione.Elimina_Art(lin, i_art, i_seq)
+                            Exit Sub
+                        End If
+                    End If
+                    i_art += 1
+                Next
+                i_seq += 1
+            Next
+        Next
+
+    End Sub
+
+    'aggiungo al magazzino le qtà di materie prime dei semilavorati che non alloro piu
+    Public Sub Aggiungi_giacenza_mat(ByVal ordine As Ordine, ByRef giacenze_mag As Giacenze_Magazzino)
+
+        If ordine.riferimento_ordine.Count = 0 Then Exit Sub
+        If ordine.tipo_art = "SL" Then Exit Sub
+
+        Dim lista_mat As List(Of Distinta_base) = New List(Of Distinta_base)
+        For Each ord In ordine.riferimento_ordine
+            For Each sl In ordine.semi_lavorati
+                If sl.cod_art_db = ord.cod_art Then
+                    For Each mat In ord.mat_prime
+                        lista_mat.Add(mat)
+                    Next
+                    Restituisci_mat_prime(sl, lista_mat, giacenze_mag)
+                End If
+            Next
+        Next
+
+    End Sub
+    Public Sub Restituisci_mat_prime(ByVal sl As Distinta_base, ByVal lista_mat As List(Of Distinta_base), ByRef giacenze_mag As Giacenze_Magazzino)
+
+        For Each gia In giacenze_mag.giacenze
+            For Each mat In lista_mat
+                If gia.cord_art_gia = mat.cod_art_db Then
+                    gia.qta_gia = mat.qta_db * sl.qta_db
+                End If
+            Next
+        Next
+
+    End Sub
+
+
+    'ritorna data e ora dell'ultimo sl pianificato dell'ordine corrente
+    Public Sub Get_ultimo_sl(ByVal Linee As List(Of Linea), ByRef ora_fine As Long, ByRef giorno_fine As Date, ByVal ordine As Ordine)
+
+        If ordine.tipo_art = "PF" Then
+            For Each lin In Linee
+                For Each uso In lin.pianificazione
+                    For Each ele In uso.elementi
+                        For Each sl In ordine.riferimento_ordine
+                            If Not ele.isVinc() Then
+                                If sl.cod_art = ele.ordine.cod_art Then
+                                    If uso.giorno > giorno_fine Then
+                                        giorno_fine = uso.giorno
+                                        ora_fine = uso.ora_fine
+                                    ElseIf uso.ora_fine > ora_fine Then
+                                        ora_fine = uso.ora_fine
+                                    End If
+                                End If
+                            End If
+                        Next
+                    Next
+                Next
+            Next
+        End If
+    End Sub
+
+    Dim Scrivi_Log As StreamWriter = Nothing
+    Dim MAX_TASK_TABU_SEARCH = 1000
+    Dim MAX_ITERAZIONI_TS As Integer = 100
+
+    Public Function Ottimizza_Soluzione(ByVal sol As Soluzione, ByVal ordini As List(Of Ordine), ByVal f_pian As Date, giacenze_mag As Giacenze_Magazzino,
+                                        ByVal ordini_semilavorati As List(Of Ordine), ByVal ordini_fornitori As Ordini_Fornitori, ByVal Scrivi_Log As StreamWriter)
+
+        Dim Num_Processori As Integer = Environment.ProcessorCount
+        Dim Task_tmp As Task = Nothing
+        Dim Tasks As List(Of Task) = New List(Of Task)
+        Dim Tasks_in_Esecuzione As Integer = 0
+        Dim Num_Tasks_Exe As Integer = 0
+        Dim Tasks_Array As Task() = Nothing
+        Dim Id_Task_Completed As Integer = 0
+        Dim iterazione As Integer = 0
+        Dim Iterazione_Best_Ultima As Integer = 0
+        Dim Sol_Curr As Soluzione = sol.Copy()
+        Dim Best_Sol As Soluzione = sol.Copy()
+        Dim val_best_sol As Double = Nothing
+        Dim val_greedy As Double = Nothing
+        Dim migliorative As Integer = 0
+
+        'Dim strFile1 As String = "logfile1.txt"
+        'System.IO.File.WriteAllText(strFile1, "")
+        'Scrivi_Log = New StreamWriter(strFile1, True)
+        'Scrivi_Log.AutoFlush = True
+
+        val_best_sol = Best_Sol.Valutazione(ordini)
+        val_greedy = val_best_sol
+
+        ' Se ho più di quattro core, ne lascio libero uno per altre applicazioni
+        If Num_Processori > 4 Then
+            Num_Processori -= 1
+        End If
+
+        Obj_Lock = New Object
+
+        Tasks.Clear()
+        Tasks_in_Esecuzione = 0
+        iterazione = 0
+        seed_random = -1
+
+        'Scheduling dei tasks
+        While (iterazione - Iterazione_Best_Ultima) <= MAX_TASK_TABU_SEARCH AndAlso iterazione < MAX_ITERAZIONI_TS AndAlso Now < f_pian 'verifico se posso eseguire la ts
+
+            While Tasks_in_Esecuzione < Num_Processori 'controllo di avere processori liberi per eseguire una nuova task
+
+                Task_tmp = New Task(Sub(Sol_Ini)
+                                        Try
+
+                                            Dim Iterazione_Curr As Integer = 0
+                                            Dim New_Sol As Soluzione = Nothing
+                                            Dim val_sol As Double = Nothing
+                                            SyncLock Obj_Lock
+                                                iterazione += 1
+                                                Iterazione_Curr = iterazione
+                                            End SyncLock
+
+                                            New_Sol = Tabu_Search(Sol_Ini, ordini, f_pian, giacenze_mag, ordini_semilavorati, ordini_fornitori, Scrivi_Log) 'chiamo la ts che mi restituisce la nuova soluzione
+
+                                            SyncLock Obj_Lock
+
+                                                Num_Tasks_Exe += 1
+
+                                                val_sol = New_Sol.Valutazione(ordini) 'valuto se la nuova soluzione è migliore della precedente
+                                                If val_sol > val_best_sol Then
+                                                    val_best_sol = val_sol
+                                                    Best_Sol = New_Sol.Copy()
+                                                    Iterazione_Best_Ultima = Iterazione_Curr
+
+                                                    migliorative += 1
+
+                                                    'Scrivi_Log.WriteLine(Now & " - Miglioramento da task nr: " & Iterazione_Curr & " e valore Funz. Obiettivo: " & val_best_sol)
+                                                Else
+
+                                                    'Scrivi_Log.WriteLine(Now & " - Nessun miglioramento da task nr: " & Iterazione_Curr)
+
+                                                End If
+
+                                            End SyncLock
+
+                                        Catch ex As Exception
+
+                                            Scrivi_Log.WriteLine(ex.Message)
+                                            Scrivi_Log.WriteLine(ex.StackTrace)
+
+                                        End Try
+
+                                    End Sub, Sol_Curr)
+
+                Tasks.Add(Task_tmp)
+                Task_tmp.Start()
+
+                Tasks_in_Esecuzione += 1
+
+            End While
+
+            Tasks_Array = Tasks.ToArray()
+            Task.WaitAny(Tasks_Array)
+
+            Do
+                Id_Task_Completed = -1
+
+                For i As Integer = 0 To Tasks.Count - 1
+
+                    If Tasks(i).Status = TaskStatus.RanToCompletion Then
+                        Id_Task_Completed = i
+                        Tasks.RemoveAt(i)
+                        Tasks_in_Esecuzione -= 1
+                        Exit For
+                    End If
+
+                Next
+
+            Loop While Id_Task_Completed <> -1 AndAlso Tasks.Count > 0
+
+            Scrivi_Log.Flush()
+
+            SyncLock Obj_Lock
+
+                If Now > f_pian Then
+                    Exit While
+                End If
+
+            End SyncLock
+
+        End While
+
+        If Not Tasks_Array Is Nothing Then
+            Task.WaitAll(Tasks_Array)
+        End If
+
+        Scrivi_Log.WriteLine("")
+        Scrivi_Log.WriteLine("Iterazioni: " & iterazione & " migliorative: " & migliorative)
+        Scrivi_Log.WriteLine("punteggio soluzione greedy: " & val_greedy)
+        Scrivi_Log.WriteLine("punteggio soluzione finale: " & val_best_sol)
+        Scrivi_Log.WriteLine("miglioramento: " & Math.Abs((val_greedy - val_best_sol) * 100 / val_greedy) & "%")
+
+        Scrivi_Log.WriteLine(vbCrLf & vbCrLf)
+
+        '        Scrivi_Log.Close()
+
+        'Best_Sol.Compatta_Soluzione()
+
+        Return Best_Sol
+    End Function
+
+
+    Dim MAX_ITERAZIONI As Long = 32000
+    Dim MAX_ITERAZIONI_NULLE As Long = 1600
+    Dim LUNGHEZZA_TABU_LIST As Long = 500
+    Dim seed_random = -1
+    Dim Obj_Lock As Object = New Object
+
+    Public Function Tabu_Search(ByRef sol As Soluzione, ByRef ordini As List(Of Ordine), ByVal f_pian As Date, ByRef giacenze_mag As Giacenze_Magazzino,
+                                ByRef ordini_semilavorati As List(Of Ordine), ByRef ordini_fornitori As Ordini_Fornitori, Optional ByRef sw1 As StreamWriter = Nothing)
+
+        Dim Tabu_List As List(Of String) = New List(Of String)
+        Dim Diversificazione As List(Of Integer) = New List(Of Integer)
+        Dim miglior_soluzione As Soluzione = sol.Copy()
+        Dim new_soluzione As Soluzione = sol.Copy()
+        Dim n_iterazioni As Long = 0
+        Dim n_iterazioni_nulle As Long = 0
+        Dim Random_Num As Random = New Random(1)
+        Dim MOSSA_SPOSTO_ART As Integer = 0
+        Dim MOSSA_SCAMBIO_ART As Integer = 1
+        Dim MOSSA_SPOSTO_SEQ As Integer = 2
+        Dim MOSSA_SCAMBIO_SEQ As Integer = 3
+        Dim MOSSA_AGGIUNGO_ART As Integer = 4
+        Dim MOSSA_ELIMINO_ART As Integer = 5
+        Dim Mosse_Disponibili As List(Of Integer) = New List(Of Integer)
+        Dim Idx_Mossa As Integer = 0
+        Dim mosse_successo As List(Of Integer) = New List(Of Integer)
+        Dim mosse_non_migliorative As List(Of Integer) = New List(Of Integer)
+        Dim numbers(99) As Integer
+
+        Dim supp As Integer = -1
+        For i As Integer = 0 To 99
+            'ogni 16 incremento il numero mossa da salvare nell array 
+            If i Mod 16 = 0 And supp < 5 Then
+                supp += 1
+            End If
+            numbers(i) = supp
+        Next
+
+        numbers.Count()
+
+        For i As Integer = 0 To 5
+            mosse_successo.Add(0)
+            mosse_non_migliorative.Add(0)
+            Diversificazione.Add(0)
+        Next
+
+        Dim vincoli_rispettati As Boolean = Nothing
+
+        Dim msp As Integer = 0
+        Dim msn As Integer = 0
+
+        SyncLock (Obj_Lock)
+            ' Ricerche diverse inizializzate con sequenze random diverse
+            If seed_random = -1 Then
+                Random_Num = New Random
+                seed_random = 10
+            Else
+                Random_Num = New Random(2 ^ seed_random)
+                seed_random += 2
+
+                If seed_random >= 31 Then
+                    seed_random = -1
+                End If
+
+            End If
+
+        End SyncLock
+
+        Dim val_best_sol As Double = miglior_soluzione.Valutazione(ordini, sw1)
+        Dim val_greedy = val_best_sol
+        'Dim strFile As String = "logfile.txt"
+        'System.IO.File.WriteAllText(strFile, "")
+        'Dim fileExists As Boolean = File.Exists(strFile)
+        'Using sw As New StreamWriter(File.Open(strFile, FileMode.OpenOrCreate))
+        '    sw.WriteLine( _
+        '        IIf(fileExists, _
+        '            "Error Message in  Occured at-- " & DateTime.Now, _
+        '            "Start Log for today"))
+
+        '    sol.print(sw)
+
+        Mosse_Disponibili.Add(MOSSA_SPOSTO_ART)
+        Mosse_Disponibili.Add(MOSSA_SCAMBIO_ART)
+        Mosse_Disponibili.Add(MOSSA_SPOSTO_SEQ)
+        Mosse_Disponibili.Add(MOSSA_SCAMBIO_SEQ)
+        Mosse_Disponibili.Add(MOSSA_AGGIUNGO_ART)
+        Mosse_Disponibili.Add(MOSSA_ELIMINO_ART)
+
+        While n_iterazioni < MAX_ITERAZIONI AndAlso n_iterazioni_nulle < MAX_ITERAZIONI_NULLE AndAlso Now <= f_pian
+
+            Dim migliorata As Boolean = False
+            new_soluzione = miglior_soluzione.Copy()
+
+            If n_iterazioni > (MAX_ITERAZIONI / 2) OrElse n_iterazioni_nulle > (MAX_ITERAZIONI_NULLE / 2) Then 'applico tecnica di diversificazione andando ad eseguire le mosse meno utilizzate 
+                Idx_Mossa = Indice_Mossa_Random(numbers, Mosse_Disponibili.Count - 1)
+            Else
+                Idx_Mossa = Mosse_Disponibili(Random_Num.Next(0, Mosse_Disponibili.Count - 1))
+            End If
+
+            Dim soluzione_vuota As Boolean = True
+            Dim nr_seq As Integer = 0
+
+            'Conto il numero delle sequenze nella solzuione
+            For Each lin In new_soluzione.Linee
+                If Not lin.IsEmpty Then
+                    soluzione_vuota = False
+                    For Each seq In lin.pianificazione
+                        If nr_seq >= 2 Then Exit For
+                        If Not seq.cod_seq = "0" Then nr_seq += 1
+                    Next
+                End If
+            Next
+
+            If soluzione_vuota = True AndAlso new_soluzione.Domanda.Count = 0 Then Exit While 'Pianificazione vuota non migliorabile
+
+            If soluzione_vuota = True Then Idx_Mossa = MOSSA_AGGIUNGO_ART 'Se la soluzione è vuota l'unica mossa possibile è aggiungere un ordine
+
+            'Se c'è una sola sequenza e nessun articolo nella domanda allora posso solo spostarla
+            If nr_seq = 1 AndAlso new_soluzione.Domanda.Count = 0 Then Idx_Mossa = MOSSA_SPOSTO_SEQ
+
+            'Se c'è una sola sequenza allora posso solo scambiare articoli, spostare articoli e spostare sequenze
+            While nr_seq = 1 AndAlso new_soluzione.Domanda.Count <> 0 AndAlso (Idx_Mossa = MOSSA_SCAMBIO_ART OrElse Idx_Mossa = MOSSA_SPOSTO_SEQ OrElse Idx_Mossa = MOSSA_SPOSTO_ART)
+                Idx_Mossa = Mosse_Disponibili(Random_Num.Next(0, Mosse_Disponibili.Count - 1))
+            End While
+
+            'Se la domanda è vuota allora non posso aggiungere ordini alla pianificazione
+            While new_soluzione.Domanda.Count = 0 AndAlso Idx_Mossa = MOSSA_AGGIUNGO_ART
+                Idx_Mossa = Mosse_Disponibili(Random_Num.Next(0, Mosse_Disponibili.Count - 1))
+            End While
+            'sw.WriteLine("")
+            'sw.WriteLine("nr iterazione: " & n_iterazioni)
+
+            Dim ite As Integer = 0
+
+            If Idx_Mossa > 5 Then Idx_Mossa = Random_Num.Next(0, Mosse_Disponibili.Count - 1)
+
+            Select Case Idx_Mossa
+                Case MOSSA_SPOSTO_ART
+
+                    Diversificazione(MOSSA_SPOSTO_ART) += 1
+                    Dim i_lin_art As Integer = 0
+                    Dim i_seq_art As Integer = 0
+                    Dim i_art As Integer = 0
+                    Dim i_lin_seq As Integer = 0
+                    Dim i_seq As Integer = 0
+
+                    ite = 0
+
+                    'Accerto che gli indici diano vita ad una mossa sensata
+                    Do
+                        Do
+                            i_lin_art = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art).IsEmpty()
+
+                        Do
+                            i_seq_art = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).fissato = True
+
+                        Do
+                            i_art = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).elementi.Count)
+
+                        Loop While miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).elementi(i_art).isVinc()
+
+                        i_lin_seq = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+
+                        If new_soluzione.Linee(i_lin_seq).IsEmpty() Then
+                            i_seq = 0
+                        Else
+                            Do
+                                i_seq = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_seq).pianificazione.Count)
+                            Loop While miglior_soluzione.Linee(i_lin_seq).pianificazione(i_seq).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_seq).pianificazione(i_seq).fissato = True
+                        End If
+
+                        ite += 1
+
+                    Loop While i_lin_art = i_lin_seq AndAlso i_seq_art = i_seq AndAlso ite < 10000
+
+                    If ite < 10000 Then
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Sposto_Art(i_lin_art, i_seq_art, i_art, i_lin_seq, i_seq, Tabu_List, sw1, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori)
+                    End If
+
+                Case MOSSA_SCAMBIO_ART
+
+                    Diversificazione(MOSSA_SCAMBIO_ART) += 1
+                    Dim i_lin_art1 As Integer = 0
+                    Dim i_seq_art1 As Integer = 0
+                    Dim i_art1 As Integer = 0
+                    Dim i_lin_art2 As Integer = 0
+                    Dim i_seq_art2 As Integer = 0
+                    Dim i_art2 As Integer = 0
+
+                    ite = 0
+
+                    'Accerto che gli indici diano vita ad una mossa sensata
+                    Do
+                        Do
+                            i_lin_art1 = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art1).IsEmpty()
+
+                        Do
+                            i_seq_art1 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art1).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art1).pianificazione(i_seq_art1).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_art1).pianificazione(i_seq_art1).fissato = True
+
+                        Do
+                            i_art1 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art1).pianificazione(i_seq_art1).elementi.Count)
+
+                        Loop While miglior_soluzione.Linee(i_lin_art1).pianificazione(i_seq_art1).elementi(i_art1).isVinc()
+
+                        Do
+                            i_lin_art2 = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art2).IsEmpty()
+
+                        Do
+                            i_seq_art2 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art2).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_art2).pianificazione(i_seq_art2).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_art2).pianificazione(i_seq_art2).fissato = True
+                        Do
+                            i_art2 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art2).pianificazione(i_seq_art2).elementi.Count)
+
+                        Loop While miglior_soluzione.Linee(i_lin_art2).pianificazione(i_seq_art2).elementi(i_art2).isVinc()
+
+                        ite += 1
+
+                    Loop While i_lin_art1 = i_lin_art2 AndAlso i_seq_art1 = i_seq_art2 AndAlso ite < 10000
+
+                    If ite < 10000 Then
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Scambio_Art(i_lin_art1, i_seq_art1, i_art1, i_lin_art2, i_seq_art2, i_art2, Tabu_List, sw1, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori)
+                    End If
+
+                Case MOSSA_SPOSTO_SEQ
+
+                    Diversificazione(MOSSA_SPOSTO_SEQ) += 1
+                    Dim i_lin_des As Integer = 0
+                    Dim i_seq_des As Integer = 0
+                    Dim i_lin_seq As Integer = 0
+                    Dim i_seq As Integer = 0
+
+                    ite = 0
+
+                    'Accerto che gli indici diano vita ad una mossa sensata
+                    Do
+                        Do
+                            i_lin_des = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_des).IsEmpty()
+
+                        i_seq_des = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_des).pianificazione.Count + 1)
+
+                        Do
+                            i_lin_seq = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq).IsEmpty()
+
+                        Do
+                            i_seq = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_seq).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq).pianificazione(i_seq).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_seq).pianificazione(i_seq).fissato = True
+
+                        ite += 1
+
+                    Loop While i_lin_des = i_lin_seq AndAlso (i_seq_des = i_seq + 1 OrElse i_seq_des = i_seq) And ite < 10000
+
+                    If ite < 10000 Then
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Sposto_Seq(i_lin_des, i_seq_des, i_lin_seq, i_seq, Tabu_List, sw1)
+                    End If
+
+                Case MOSSA_SCAMBIO_SEQ
+
+                    Diversificazione(MOSSA_SCAMBIO_SEQ) += 1
+                    Dim i_lin_seq_1 As Integer = 0
+                    Dim i_seq_1 As Integer = 0
+                    Dim i_lin_seq_2 As Integer = 0
+                    Dim i_seq_2 As Integer = 0
+
+                    ite = 0
+
+                    'Accerto che gli indici diano vita ad una mossa sensata
+                    Do
+                        Do
+                            i_lin_seq_1 = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq_1).IsEmpty()
+
+                        Do
+                            i_seq_1 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_seq_1).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq_1).pianificazione(i_seq_1).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_seq_1).pianificazione(i_seq_1).fissato = True
+
+                        Do
+                            i_lin_seq_2 = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq_2).IsEmpty()
+
+                        Do
+                            i_seq_2 = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_seq_2).pianificazione.Count)
+                        Loop While miglior_soluzione.Linee(i_lin_seq_2).pianificazione(i_seq_2).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_seq_2).pianificazione(i_seq_2).fissato = True
+
+                        ite += 1
+
+                    Loop While i_lin_seq_1 = i_lin_seq_2 AndAlso i_seq_1 = i_seq_2 AndAlso ite < 10000
+
+                    If ite < 10000 Then
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Scambio_Seq(i_lin_seq_1, i_seq_1, i_lin_seq_2, i_seq_2, Tabu_List, sw1)
+                    End If
+
+                Case MOSSA_AGGIUNGO_ART
+
+                    Diversificazione(MOSSA_AGGIUNGO_ART) += 1
+                    Dim i_lin_des As Integer = 0
+                    Dim i_seq_des As Integer = 0
+
+                    ite = 0
+
+                    i_lin_des = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+
+                    If miglior_soluzione.Linee(i_lin_des).IsEmpty() Then
+                        'Se la linea è vuota allora aggiungoi l'articolo in una nuova sequenza
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Aggiungo_Art_Nuova_Seq(i_lin_des, Tabu_List, sw1, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori)
+                    Else
+                        Do
+                            i_seq_des = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_des).pianificazione.Count)
+                            ite += 1
+                        Loop While ite < 10000 AndAlso (miglior_soluzione.Linee(i_lin_des).pianificazione(i_seq_des).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_des).pianificazione(i_seq_des).fissato = True)
+
+                        'Se non è vuota aggiungo l'articolo in una sequenza esistente
+                        vincoli_rispettati = new_soluzione.Esegui_Mossa_Aggiungo_Art(i_lin_des, i_seq_des, Tabu_List, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori, sw1)
+
+                        If vincoli_rispettati = False Then
+                            'Se non c'è nessuna sequenza adatta, aggiungo l'articolo in una nuova sequenza
+                            new_soluzione = miglior_soluzione.Copy()
+                            vincoli_rispettati = new_soluzione.Esegui_Mossa_Aggiungo_Art_Nuova_Seq(i_lin_des, Tabu_List, sw1, miglior_soluzione, giacenze_mag, ordini_semilavorati, ordini_fornitori)
+                        End If
+
+                    End If
+
+                Case MOSSA_ELIMINO_ART
+
+                    Diversificazione(MOSSA_ELIMINO_ART) += 1
+                    Dim i_lin_art As Integer = 0
+                    Dim i_seq_art As Integer = 0
+                    Dim i_art As Integer = 0
+
+                    'Accerto che gli indici diano vita ad una mossa sensata
+                    Do
+                        i_lin_art = Random_Num.Next(0, miglior_soluzione.Linee.Count)
+                    Loop While miglior_soluzione.Linee(i_lin_art).IsEmpty()
+
+                    Do
+                        i_seq_art = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art).pianificazione.Count)
+                    Loop While miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).cod_seq = "0" OrElse miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).fissato = True
+
+                    Do
+                        i_art = Random_Num.Next(0, miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).elementi.Count)
+                    Loop While miglior_soluzione.Linee(i_lin_art).pianificazione(i_seq_art).elementi(i_art).isVinc()
+                    'creo una copia dell'ordine che voglio eliminare dopo
+
+                    Dim ordine_copia As Ordine = new_soluzione.Copia_Ordine(i_lin_art, i_seq_art, i_art)
+
+                    vincoli_rispettati = new_soluzione.Esegui_Mossa_Elimino_Art(i_lin_art, i_seq_art, i_art, Tabu_List, sw1, giacenze_mag, miglior_soluzione)
+                    If vincoli_rispettati Then 'devo chiamare qui la funzione di rimozione con gli articoli che ho al momento
+                        new_soluzione.Aggiungi_Giacenza(ordine_copia, giacenze_mag)
+                    End If
+            End Select
+
+            If vincoli_rispettati Then
+
+                Dim val_new_sol As Double = 0
+
+                'sw.WriteLine("")
+                'sw.WriteLine("nuovo punteggio: " & val_new_sol & " vs vecchio punteggio: " & val_best_sol)
+                'sw.Write("mossa effettuata con successo e ")
+                'sw1.WriteLine("nuovo punteggio: " & val_new_sol & " vs vecchio punteggio: " & val_best_sol)
+                'sw1.Write("mossa effettuata con successo e ")
+
+                If miglior_soluzione.Confronta_Soluzione(val_best_sol, new_soluzione, val_new_sol, ordini, sw1) Then
+
+                    miglior_soluzione = new_soluzione
+                    val_best_sol = val_new_sol
+                    migliorata = True
+                    'sw.WriteLine("migliorativa.")
+                    'sw1.WriteLine("migliorativa. nr: " & n_iterazioni)
+                    'sw1.WriteLine("")
+                    'miglior_soluzione.Print(sw1)
+                    msp += 1
+                    mosse_successo(Idx_Mossa) += 1
+                Else
+                    migliorata = False
+                    'sw.WriteLine("non migliorativa.")
+                    'sw1.WriteLine("non migliorativa. nr: " & n_iterazioni)
+                    'sw1.WriteLine("")
+                    msn += 1
+                    If Tabu_List.Count > 0 Then
+                        Tabu_List.RemoveAt(Tabu_List.Count - 1)
+                    End If
+                    If Tabu_List.Count > 0 Then
+                        Tabu_List.RemoveAt(Tabu_List.Count - 1)
+                    End If
+                    mosse_non_migliorative(Idx_Mossa) += 1
+                End If
+            End If
+            If migliorata = True Then
+                n_iterazioni_nulle = 0
+            Else : n_iterazioni_nulle += 1
+            End If
+            n_iterazioni += 1
+        End While
+
+        'sw1.WriteLine("mosse successo positive: " & msp & " mosse successo negative: " & msn & " mosse totali: " & n_iterazioni)
+
+        'sw1.WriteLine("")
+        'sw1.WriteLine("Punteggio soluzione greedy: " & val_greedy)
+        'sw1.WriteLine("Punteggio soluzione finale: " & val_best_sol)
+        'sw1.WriteLine("Miglioramento: " & Math.Abs((val_greedy - val_best_sol) * 100 / val_greedy) & "%")
+
+        'sw1.WriteLine(vbCrLf & vbCrLf)
+
+        'sw1.WriteLine("SpostoA: " & mosse_successo(0) & " ScambioA: " & mosse_successo(1) & " SpostoS: " & mosse_successo(2) & " ScambioS: " & mosse_successo(3) & " Aggiungo: " & mosse_successo(4) & " Elimino: " & mosse_successo(5))
+        'sw1.WriteLine("SpostoA: " & mosse_non_migliorative(0) & " ScambioA: " & mosse_non_migliorative(1) & " SpostoS: " & mosse_non_migliorative(2) & " ScambioS: " & mosse_non_migliorative(3) & " Aggiungo: " & mosse_non_migliorative(4) & " Elimino: " & mosse_non_migliorative(5))
+        'sw1.WriteLine("Ordini non pianificati: " & miglior_soluzione.Domanda.Count)
+
+        Return miglior_soluzione
+
+    End Function
+
+    Public Function Indice_Mossa_Random(ByRef numbers() As Integer, ByVal totale As Integer)
+        Dim index As Integer
+        Dim rand As Random = New Random
+        Dim uso As Integer = rand.Next(0, 99)
+        index = numbers(uso)
+        Do
+            numbers(uso) = rand.Next(0, totale)
+        Loop While numbers(uso) = index
+
+        Return index
+    End Function
+
+    Class DG
+        Public giorno As Date
+        Public tempo As Long
+    End Class
+
+    'Leggo la soluzione dal file JSON
+    Public Sub Leggi_Soluzione_Json(ByVal input_path As String, ByRef errori As List(Of String), ByRef linee As List(Of Pianificazione_Linea))
+
+        Dim json_reader As JsonTextReader
+        Dim jobj As JObject
+        Dim json_array As JArray
+        Dim json_array_info As JArray
+
+        Using reader = New StreamReader(input_path)
+
+            json_reader = New JsonTextReader(reader)
+            jobj = CType(JToken.ReadFrom(json_reader), JObject)
+
+
+            ' Leggo la sezione linee che contiene le sequenze di produzione
+            json_array = jobj.SelectToken("linee")
+
+            If Not json_array Is Nothing Then
+
+
+                For Each lin As JObject In json_array.Children(Of JObject)()
+
+                    Dim linea As Pianificazione_Linea = New Pianificazione_Linea
+
+                    For Each nodo As JProperty In lin.Properties
+
+                        Select Case nodo.Name
+                            Case "cod_linea_prod"
+                                linea.cod_linea_prod = nodo.Value
+                            Case "articoli"
+                                json_array_info = nodo.Value
+
+                                For Each info As JObject In json_array_info.Children(Of JObject)()
+
+                                    Dim lavoro As Lavoro = New Lavoro
+
+                                    For Each temp As JProperty In info.Properties
+                                        Select Case temp.Name
+                                            Case "cod_seq"
+                                                lavoro.cod_seq = temp.Value
+                                            Case "vincolo"
+                                                lavoro.vincolo = temp.Value
+                                            Case "tipo_art"
+                                                lavoro.tipo_art = temp.Value
+                                            Case "cod_linea"
+                                                lavoro.cod_linea = temp.Value
+                                            Case "cod_sett"
+                                                lavoro.cod_sett = temp.Value
+                                            Case "cod_fam"
+                                                lavoro.cod_fam = temp.Value
+                                            Case "cod_sott"
+                                                lavoro.cod_sott = temp.Value
+                                            Case "cod_art"
+                                                lavoro.cod_art = temp.Value
+                                            Case "des_vinc"
+                                                lavoro.des_art = temp.Value
+                                            Case "qta_pz"
+                                                lavoro.qta_pz = temp.Value
+                                            Case "nr_ord"
+                                                lavoro.nr_ord = temp.Value
+                                            Case "nr_riga_ord"
+                                                lavoro.nr_riga_ord = temp.Value
+                                            Case "anno_ord"
+                                                lavoro.anno_ord = temp.Value
+                                            Case "ora_inizio"
+                                                lavoro.ora_inizio = temp.Value
+                                            Case "ora_fine"
+                                                lavoro.ora_fine = temp.Value
+                                            Case "giorno"
+                                                lavoro.giorno = temp.Value
+                                        End Select
+                                    Next
+                                    linea.pianificazione.Add(lavoro)
+                                Next
+                        End Select
+                    Next
+                    linee.Add(linea)
+                Next
+            End If
+
+            ' Leggo la sezione errori che contiene gli errori rilevati
+            json_array = jobj.SelectToken("errori")
+
+            If Not json_array Is Nothing Then
+
+                For Each err As JObject In json_array.Children(Of JObject)()
+
+                    For Each nodo As JProperty In err.Properties
+
+                        Select Case nodo.Name
+                            Case "errore"
+                                errori.Add(nodo.Value)
+                        End Select
+                    Next
+
+                Next
+            End If
+
+        End Using
+    End Sub
+
+End Module

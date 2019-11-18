@@ -1,0 +1,1214 @@
+Imports System.Linq
+
+
+Public Class Linea
+    Public cod_linea_prod As String = Nothing
+    Public info_art As List(Of Info_Art) = New List(Of Info_Art)
+    Public info_vinc As List(Of Info_Vinc) = New List(Of Info_Vinc)
+    Public vincoli_linea As List(Of Vincolo) = New List(Of Vincolo)
+    Public sequenze_linea As List(Of Sequenza) = New List(Of Sequenza)
+    Public pianificazione As List(Of Seq_Pian) = New List(Of Seq_Pian)
+    Public errori As List(Of String) = New List(Of String)
+    Public calendario As List(Of Giorno) = New List(Of Giorno)
+
+    Sub New()
+
+    End Sub
+
+    Sub New(lin As Linea)
+        cod_linea_prod = lin.cod_linea_prod
+        info_art = New List(Of Info_Art)(lin.info_art)
+        info_vinc = New List(Of Info_Vinc)(lin.info_vinc)
+        vincoli_linea = New List(Of Vincolo)(lin.vincoli_linea)
+        sequenze_linea = New List(Of Sequenza)(lin.sequenze_linea)
+        pianificazione = New List(Of Seq_Pian)(lin.pianificazione)
+        calendario = New List(Of Giorno)(lin.calendario)
+    End Sub
+
+    Public Function Copy() As Linea
+        Return New Linea With {.cod_linea_prod = cod_linea_prod,
+                                .info_art = info_art.Select(Function(item) item.Copy()).OfType(Of Info_Art).ToList(),
+                                .info_vinc = info_vinc.Select(Function(item) item.Copy()).OfType(Of Info_Vinc).ToList(),
+                                .vincoli_linea = vincoli_linea.Select(Function(item) item.Copy()).OfType(Of Vincolo).ToList(),
+                                .sequenze_linea = sequenze_linea.Select(Function(item) item.Copy()).OfType(Of Sequenza).ToList(),
+                                .pianificazione = pianificazione.Select(Function(item) item.Copy()).OfType(Of Seq_Pian).ToList(),
+                                .calendario = calendario.Select(Function(item) item.Copy()).OfType(Of Giorno).ToList()}
+    End Function
+
+    'Inserisce il vincolo nel giorno indicato
+    Public Function Inserisci_Vincolo(ByVal vincolo As Vincolo, ByVal giorno As Date)
+
+        Dim start_day As Integer = pianificazione.FindIndex(Function(x) x.giorno = giorno) 'Primo elemento del giorno
+        Dim end_day As Integer = pianificazione.FindLastIndex(Function(x) x.giorno = giorno) 'Ultimo elemento del giorno
+        Dim l_elem As List(Of Elemento) = New List(Of Elemento)
+        Dim durata As Long = info_vinc.Find(Function(x) x.cod_art = vincolo.cod_art).sec_lav
+
+        l_elem.Add(New Elemento(vincolo, durata))
+
+        For i As Integer = end_day To start_day
+
+            If i = end_day Then
+                Dim ora_f_giorno As Long = calendario.Find(Function(x) x.giorno = giorno).Ora_Fine
+                'Se il vincolo ci sta tra l'ultimo elemento e la fine del giorno, lo inserisco
+                If ora_f_giorno - pianificazione(i).ora_fine >= durata Then
+                    pianificazione.Insert(i, New Seq_Pian("0", giorno, ora_f_giorno - durata, ora_f_giorno, l_elem))
+                    Return True
+                End If
+            ElseIf i = start_day Then
+                'se arrivo al primo elemento, ritorno falso non posso inserire il vincolo
+                Return False
+            Else
+                'Se ci sta tra l'elemento corrente e il precedente, lo inserisco
+                If pianificazione(i).ora_inizio - pianificazione(i - 1).ora_fine >= durata + 2 Then
+                    pianificazione.Insert(i, New Seq_Pian("0", giorno, pianificazione(i).ora_inizio - 1 - durata, pianificazione(i).ora_inizio - 1, l_elem))
+                    Return True
+                End If
+            End If
+        Next
+
+        Return False
+    End Function
+
+    'Aggiunge l'ordine ad una sequenza esistente di indice i_seq
+    Public Function Aggiungi_Art(ByVal i_seq As Integer, ByVal ordine As Ordine, ByVal ora_f As Long, ByVal giorno As Date)
+
+        If IsNothing(pianificazione(i_seq)) Then Return False
+
+        If IsNothing(sequenze_linea.Find(Function(x) x.cod_seq = pianificazione(i_seq).cod_seq)) Then Return False
+
+        Dim durata As Long = Tempo_Nuovo_Articolo_Seq(pianificazione(i_seq), ordine) 'Durata della sequenza con aggiunto l'articolo
+
+        Dim ord As Articolo = sequenze_linea.Find(Function(x) x.cod_seq = pianificazione(i_seq).cod_seq).articoli.Find(Function(x) A_Comprende_B_Class(x, ordine))
+
+        'Se non può essere prodotto nella sequenza ritorno false
+        If IsNothing(ord) Then Return False
+
+        'Se la nuova sequenza si sovrapporrebbe con la successiva, ritorno false
+        If i_seq < pianificazione.Count - 1 AndAlso pianificazione(i_seq).giorno = pianificazione(i_seq + 1).giorno AndAlso pianificazione(i_seq + 1).ora_inizio - pianificazione(i_seq).ora_fine <= durata Then Return False '
+
+        'Se la nuova sequenza si sovrapporebbe con la fine del gionro, ritorno false
+        If (i_seq = pianificazione.Count - 1 OrElse pianificazione(i_seq).giorno <> pianificazione(i_seq + 1).giorno) AndAlso calendario.Find(Function(x) x.giorno = pianificazione(i_seq).giorno).Ora_Fine() - pianificazione(i_seq).ora_fine < durata + 2 Then Return False
+
+        'Indice dell'elemento nella nuova sequenza
+        Dim index = pianificazione(i_seq).elementi.FindLastIndex(Function(x) (Not x.isVinc) AndAlso x.ordine.cod_art = ordine.cod_art)
+
+        Dim ord_ris As Integer = ord.seq_ordine
+
+        If ora_f <> -1 Then ' se sto scambiando il pf e non rispetta le date dei sl non lo posso inserire
+            If pianificazione(i_seq).giorno < giorno Then
+                Return False
+                If pianificazione(i_seq).giorno = giorno AndAlso pianificazione(i_seq).ora_fine < ora_f Then
+                    Return False
+                End If
+            End If
+        End If
+
+        'Se non  ci sono elementi con lo stesso codice articolo, lo inserico all'inizio
+        If index <> -1 Then
+            pianificazione(i_seq).elementi.Insert(index + 1, New Elemento(ordine, durata, ord_ris))
+        Else
+            'If pianificazione(i_seq).elementi.Count = 0 Then
+            '    index = 0
+            'Else
+
+            'Segno l'indice in cui andrebbe posto l'ordine
+            index = pianificazione(i_seq).elementi.FindLastIndex(Function(x) (Not x.isVinc()) OrElse (Not x.vincolo.tipo_vinc = "FIN" AndAlso (Not x.vincolo.v_per_articolo))) + 1
+
+            Dim v_ini_art As List(Of Elemento) = New List(Of Elemento)
+            Dim v_fin_art As List(Of Elemento) = New List(Of Elemento)
+            Dim new_elementi As List(Of Elemento) = New List(Of Elemento)
+
+            For Each art In sequenze_linea.Find(Function(x) x.cod_seq = pianificazione(i_seq).cod_seq).articoli
+
+                If art.vincolo AndAlso art.v_per_articolo AndAlso A_Comprende_B_Class(art, ordine) Then 'Per ogni vincolo per articolo relativo all'ordine, lo aggiungo nel posto indicato
+                    Dim articolo As Articolo = art
+
+                    If art.cod_tipo = "INI" Then
+                        v_ini_art.Add(New Elemento(art, info_vinc.Find(Function(x) x.cod_art = articolo.cod_art).sec_lav))
+                    Else
+                        v_fin_art.Add(New Elemento(art, info_vinc.Find(Function(x) x.cod_art = articolo.cod_art).sec_lav))
+                    End If
+                    Soddisfa_Vincoli_Non_Obb(art.cod_art, pianificazione(i_seq).giorno) 'Elimino i vincoli non obbligatori corrispondenti al vincolo aggiunto nella pianificazione
+                End If
+            Next
+
+            v_ini_art.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+            v_fin_art.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+
+            'Costruisco la sotto-sequenza da aggiungere
+            new_elementi = v_ini_art
+            new_elementi.Add(New Elemento(ordine, durata, ord_ris))
+            If v_fin_art.Count > 0 Then new_elementi = new_elementi.Concat(v_fin_art)
+            pianificazione(i_seq).elementi.InsertRange(index, new_elementi)
+        End If
+
+        'Se aggiungendo articolo e vincoli non rispetto più le date di spedizione, ritorno false
+        If Not Date_Sped_Rispettate(pianificazione(i_seq), calendario.Find(Function(x) x.giorno = pianificazione(i_seq).giorno)) Then Return False
+
+        pianificazione(i_seq).ora_fine += durata + 1 'Aggiungo all'ora di fine il tempo di lavorazione di articoli e vincoli che ho aggiunto
+        Return True
+    End Function
+
+    'Controllo una sequenza pianificata in un giorno se tutti i sui articoli sono prodotti prima della propria data di spedizione
+    Public Function Date_Sped_Rispettate(ByVal seq As Seq_Pian, ByVal giorno As Giorno)
+
+        Dim tempo_prod As Long = giorno.Ora_Inizio
+        For Each elem In seq.elementi
+            tempo_prod += elem.sec_lav
+
+            If Not elem.isVinc() Then 'Per ogni articolo controllo se la produzione è finita prima della data di spedizione
+                If elem.ordine.data_spedizione_ordcli < seq.giorno.AddSeconds(tempo_prod) Then
+                    Return False
+                End If
+            End If
+
+        Next
+        Return True
+    End Function
+
+    Public Sub Scambia_Seq(ByVal x As Integer, ByVal y As Integer)
+        Dim temp As Seq_Pian = pianificazione(x).Copy()
+        pianificazione(x) = pianificazione(y).Copy()
+        pianificazione(y) = temp.Copy()
+    End Sub
+
+    'Inserisce la sequenza nel primo slot libero a disposizione
+    Public Function Inserisci_Seq_Slot_Libero(ByRef ora_i As Long, ByRef giorno As Date, ByRef seq_prec As Integer, ByVal durata As Long, ByRef calendario As List(Of Giorno), pian As List(Of Seq_Pian), ByVal flag As Boolean, ByVal ordine As Ordine)
+
+        'Se la pianificazione è vuota, la inserisco come prima sequenza
+        Dim check As Boolean = False
+        Dim gio As Date = giorno
+
+        If pian.Count = 0 Then
+            If ordine.tipo_art = "PF" AndAlso ordine.riferimento_ordine.Count <> 0 Then
+                If pian.FindIndex(Function(x) x.giorno = gio) = -1 Then
+                    Return Ins_ord_post(ora_i, giorno, seq_prec, durata, calendario, pian, ordine)
+            End If
+        Else
+            ora_i = calendario(0).Ora_Inizio()
+        End If
+        If flag = False Then
+            giorno = calendario(0).giorno
+        End If
+        seq_prec = -1
+        If check = False Then
+            Return True
+        End If
+        Else
+
+            'Dim gio As Date = giorno
+
+        'Se il giorno è libero, allora la inserisco come prima del giorno se ci sta
+            If pian.FindIndex(Function(x) x.giorno = gio) = -1 Then
+                If calendario.FindIndex(Function(x) x.giorno = gio) <> -1 Then
+                    If calendario.Find(Function(x) x.giorno = gio).Ora_Fine() - calendario.Find(Function(x) x.giorno = gio).Ora_Inizio() >= durata Then
+                        ora_i = calendario.Find(Function(x) x.giorno = gio).Ora_Inizio()
+                        seq_prec = pian.FindLastIndex(Function(x) x.giorno < gio)
+                        Return True
+                    End If
+                End If
+            Else
+                If check = True Then
+                    Return Ins_ord_post(ora_i, giorno, -1, durata, calendario, pian, ordine)
+                End If
+
+                For index As Integer = pian.FindIndex(Function(x) x.giorno = gio) To pian.Count - 1
+                    If pian(index).giorno <> giorno Then Exit For
+                    Dim i As Integer = index
+
+                    'Se non ci sono seq precedenti nello stesso giorno e c'è posto, inserisco qui
+                    If (i = 0 OrElse pian(i - 1).giorno <> pian(i).giorno) AndAlso (pian(i).ora_inizio - calendario.Find(Function(x) x.giorno = pian(i).giorno).Ora_Inizio()) > durata Then
+                        ora_i = calendario.Find(Function(x) x.giorno = pian(i).giorno).Ora_Inizio()
+                        seq_prec = i - 1
+                        Return True
+
+                        'Se c'è posto tra la seq corrente e quella precedente, e sono dello stesso giorno, inserisco qui
+                    ElseIf i > 0 AndAlso pian(i - 1).giorno = pian(i).giorno AndAlso (pian(i).ora_inizio - pian(i - 1).ora_fine) > durata + 1 Then
+                        ora_i = pian(i - 1).ora_fine + 1
+                        seq_prec = i - 1
+                        Return True
+
+                        'Se non ci sono seq successive nello stesso giorno e c'è posto, inserisco qui
+                    ElseIf (i = pian.Count - 1 OrElse pian(i).giorno <> pian(i + 1).giorno) AndAlso calendario.Find(Function(x) x.giorno = pian(i).giorno).Ora_Fine() - pian(i).ora_fine > durata Then
+                        seq_prec = i - 1
+                        ora_i = pian(i).ora_fine + 1
+                        Return True
+
+                    End If
+                Next
+            End If
+            End If
+        Return False
+    End Function
+    'tralso i giorni se capito di domenica o festivi
+    Public Sub Sposta_giorni_fornitori(ByRef giorno As Date)
+        Dim temp = giorno
+        'While temp < calendario.Last.giorno
+        If calendario.FindIndex(Function(x) x.giorno = temp) <> -1 Then
+            temp.AddDays(1)
+        End If
+        'End While
+        giorno = temp
+    End Sub
+
+    Public Function Ins_ord_post(ByRef ora_i As Long, ByVal giorno As Date, ByVal seq_prec As Integer, ByVal durata As Long, calendario As List(Of Giorno), pian As List(Of Seq_Pian), ByVal ordine As Ordine)
+        'controllo se ci sta nel giorno corrente
+      
+        If calendario.Find(Function(x) x.giorno = giorno).Ora_Fine() - ora_i >= durata Then
+            ora_i = calendario.Find(Function(x) x.giorno = giorno).Ora_Inizio()
+            seq_prec = pian.FindLastIndex(Function(x) x.giorno < giorno)
+            Return True
+        End If
+        Return False
+    End Function
+
+    'Inserisco una sequenza con un ordine nella linea, ritorno l'indice se ho avuto successo, -1 se no
+    Public Function Aggiungi_Seq_Art(ByVal i_seq As Integer, ByVal ordine As Ordine, ByVal giorno As Date, ByVal ora_i As Long)
+        'Dim giorno As Date = Nothing
+        Dim durata = Durata_Sequenza(sequenze_linea(i_seq), ordine)
+        'Dim ora_i As Long = -1
+        Dim seq_prec As Integer = 0
+        Dim new_pian As List(Of Seq_Pian) = pianificazione.Select(Function(item) item.Copy()).OfType(Of Seq_Pian).ToList()
+        Dim aggiunto = False
+
+        'Creo gli elementi della nuova sequenza
+        Dim elem As List(Of Elemento) = New List(Of Elemento)
+
+        For Each art In sequenze_linea(i_seq).articoli
+            Dim articolo As Articolo = art
+
+            'Se l'articolo da inserire nella sequenza è un vincolo, e se è per articolo controllo che riguardi l'articolo ordinato
+            If art.vincolo AndAlso ((Not art.v_per_articolo) OrElse A_Comprende_B_Class(art, ordine)) Then
+                Dim aggiungo_vinc As Boolean = False
+                Select Case art.cod_tipo
+                    Case "INI"
+                        aggiungo_vinc = True
+                    Case "FIN"
+                        aggiungo_vinc = True
+                    Case "SEQ"
+                End Select
+                If aggiungo_vinc = True Then
+                    '  elem.Add(New Elemento(art, info_vinc.Find(Function(x) x.cod_art = articolo.cod_art).sec_lav))
+
+                    For i As Integer = 0 To info_vinc.Count - 1
+
+                        If info_vinc(i).cod_art = articolo.cod_art Then
+                            elem.Add(New Elemento(art, info_vinc(i).sec_lav))
+                        End If
+
+                    Next
+
+                End If
+            ElseIf A_Comprende_B_Class(art, ordine) AndAlso Not aggiunto Then 'Se è l'articolo, lo inserisco tra gli elementi della sequenza
+                elem.Add(New Elemento(ordine, ordine.qta_pz / Get_Pz_Ora(ordine) * 3600, art.seq_ordine))
+                aggiunto = True
+            End If
+
+        Next
+
+        Dim flag As Boolean = False
+        'controllo se devo rispettare la fine dei semilavorati
+        If giorno = Nothing Then
+            giorno = calendario(0).giorno
+        Else
+            flag = True
+        End If
+
+        While giorno <= calendario.Last.giorno
+
+            Dim seq_count As List(Of Articolo) = New List(Of Articolo)
+
+            'Elimino dalla pianificazione del giorno in cui vorrei inserire la sequenza tutti i vincoli non obb che sono presenti nella sequenza
+            For Each art In sequenze_linea(i_seq).articoli
+                Dim articolo As Articolo = art
+                If art.vincolo = True Then
+                    Dim rimossi As Integer = new_pian.RemoveAll(Function(x) x.cod_seq = "0" AndAlso x.elementi(0).vincolo.cod_art = articolo.cod_art AndAlso x.elementi(0).vincolo.vinc_obb = False AndAlso x.giorno = giorno)
+                    If art.cod_tipo = "SEQ" AndAlso rimossi > 0 Then seq_count.Add(art) 'salvo i vincoli dipendenti dalla sequenza precedente che potrebbero non essere inseriti
+                End If
+            Next
+
+            'Inserisco la sequenza nel primo slot libero atto ad ospitarla
+            Dim successo As Boolean = Inserisci_Seq_Slot_Libero(ora_i, giorno, seq_prec, durata, calendario, new_pian, flag, ordine)
+
+            If successo = True Then
+
+                For Each art In sequenze_linea(i_seq).articoli
+                    Dim articolo As Articolo = art
+
+                    'Inserisco i vincoli di sequenza ora che so la sequenza precedente. Se l'articolo da inserire nella sequenza è un vincolo, e se è per articolo controllo che riguardi l'articolo ordinato
+                    If art.vincolo AndAlso ((Not art.v_per_articolo) OrElse A_Comprende_B_Class(art, ordine)) Then
+                        If art.cod_tipo = "SEQ" Then
+                            While seq_prec > 0 AndAlso pianificazione(seq_prec).cod_seq = "0"
+                                seq_prec -= 1
+                            End While
+                            If seq_prec >= 0 AndAlso pianificazione(seq_prec).cod_seq = art.cod_seqprod_cond Then
+                                '                                elem.Add(New Elemento(art, info_vinc.Find(Function(x) x.cod_art = articolo.cod_art).sec_lav))
+
+                                For i As Integer = 0 To info_vinc.Count - 1
+
+                                    If info_vinc(i).cod_art = articolo.cod_art Then
+                                        elem.Add(New Elemento(art, info_vinc(i).sec_lav))
+                                    End If
+
+                                Next
+
+                            End If
+                        End If
+                    End If
+                Next
+
+                Dim soddisfatti_vincoli As Boolean = True
+
+                'Rimuovo dalla lista di tutti i vincoli sequenza quelli effettivamente aggiunti
+                For Each ele In elem
+                    Dim elemento As Elemento = ele
+                    seq_count.RemoveAll(Function(x) x.cod_art = elemento.vincolo.cod_art)
+                Next
+                If seq_count.Count = 0 Then Exit While 'se li ho aggiunti tutti, allora esco dal ciclo perchè lo spazio è disponibile all'aggiunta della sequenza
+
+                'Controllo tra i vincoli rimanenti se almeno uno si sovrappone con la sequenza da immettere
+                Dim sovrapposizione As Boolean = False
+                For Each vinc In seq_count
+                    Dim seq_vinc As Articolo = vinc
+                    If pianificazione.Find(Function(x) x.cod_seq = "0" AndAlso x.elementi(0).vincolo.cod_art = seq_vinc.cod_art).Sovrappone(ora_i, ora_i + durata) Then
+                        sovrapposizione = True
+                        Exit For
+                    End If
+                Next
+                If sovrapposizione = False Then Exit While
+            End If
+
+            ora_i = -1
+            seq_prec = 0
+            giorno = Giorno_Successivo(giorno, calendario)
+
+            elem.RemoveAll(Function(x) x.isVinc AndAlso x.vincolo.tipo_vinc = "SEQ")
+
+        End While
+
+        'Se non c'è nessun slot libero, la inserisco in un nuovo giorno, se rientra nel periodo da pianificare
+        If ora_i = -1 Then
+            If pianificazione.Count > 0 Then
+                If giorno > calendario.Last.giorno Then Return -1
+                If Giorno_Successivo(pianificazione(pianificazione.Count - 1).giorno, calendario) <= calendario.Last.giorno Then
+                    giorno = Giorno_Successivo(pianificazione(pianificazione.Count - 1).giorno, calendario)
+                    'ora_i = calendario.Find(Function(x) x.giorno = giorno).Ora_Inizio()
+
+                    For i As Integer = 0 To calendario.Count - 1
+
+                        If calendario(i).giorno = giorno Then
+                            ora_i = calendario(i).Ora_Inizio
+                            Exit For
+                        End If
+
+                    Next
+
+                    If ora_i = -1 Then Return -1
+                End If
+            Else
+                If giorno > calendario.Last.giorno Then Return -1
+                If Giorno_Successivo(pianificazione(pianificazione.Count).giorno, calendario) <= calendario.Last.giorno Then
+                    giorno = Giorno_Successivo(pianificazione(pianificazione.Count).giorno, calendario)
+                    'ora_i = calendario.Find(Function(x) x.giorno = giorno).Ora_Inizio()
+
+                    For i As Integer = 0 To calendario.Count - 1
+
+                        If calendario(i).giorno = giorno Then
+                            ora_i = calendario(i).Ora_Inizio
+                            Exit For
+                        End If
+
+                    Next
+                    If ora_i = -1 Then Return -1
+                End If
+            End If
+        End If
+
+            Dim ora_f As Long = ora_i + durata
+
+            'Controllo se la data di spedizione è rispettata, se non lo è non posso aggiungere la sequenza
+            If giorno >= ordine.data_spedizione_ordcli Then
+                If giorno = ordine.data_spedizione_ordcli Then
+                    If Not calendario.Find(Function(x) x.giorno = giorno) Is Nothing AndAlso (Field_Null(ordine.ora_spedizione_ordcli) OrElse StringToSec(ordine.ora_spedizione_ordcli) > calendario.Find(Function(x) x.giorno = giorno).Orario_Reale(ora_i, ora_f).ora_fine_sec) Then Return -1
+                Else : Return -1
+                End If
+            End If
+
+            Dim v_ini As List(Of Elemento) = New List(Of Elemento)
+            Dim v_fin As List(Of Elemento) = New List(Of Elemento)
+            Dim v_seq As List(Of Elemento) = New List(Of Elemento)
+            Dim v_ini_art As List(Of Elemento) = New List(Of Elemento)
+            Dim v_fin_art As List(Of Elemento) = New List(Of Elemento)
+            Dim ord As Elemento = Nothing
+
+            For Each ele In elem
+                If ele.isVinc Then
+                    Select Case ele.vincolo.tipo_vinc
+                        Case "SEQ"
+                            v_seq.Add(ele)
+                        Case "INI"
+                            If ele.vincolo.v_per_articolo = True Then
+                                v_ini_art.Add(ele)
+                            Else
+                                v_ini.Add(ele)
+                            End If
+                        Case "FIN"
+                            If ele.vincolo.v_per_articolo = True Then
+                                v_fin_art.Add(ele)
+                            Else
+                                v_fin.Add(ele)
+                            End If
+                    End Select
+                Else
+                    ord = ele
+                End If
+            Next
+
+            v_ini.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+            v_ini_art.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+            v_fin.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+            v_fin_art.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+            v_seq.Sort(Function(x, y) x.ord_ris < y.ord_ris) 'Ordino gli elementi per ordine di produzione
+
+            elem = v_seq
+
+            'Costruisco la sequenza corretta di elementi, con i vincoli nell'ordine giusto
+            elem.AddRange(v_seq)
+            elem.AddRange(v_ini)
+            elem.AddRange(v_ini_art)
+            elem.Add(ord)
+            elem.AddRange(v_fin)
+            elem.AddRange(v_fin_art)
+
+            'Per ogni nuovo ordine, soddisfo i vincoli non obbligatori della giornata
+            For Each ele In elem
+                If ele.isVinc() Then Soddisfa_Vincoli_Non_Obb(ele.vincolo.cod_art, giorno)
+            Next
+
+            'Aggiungo la nuova sequenza alla pinaificazione
+            Dim test = Aggiungi_Seq(sequenze_linea(i_seq).cod_seq, giorno, ora_i, ora_f, elem)
+            Return test
+    End Function
+
+    'Elimino i vincoli non obbligatori in surplus
+    Public Sub Soddisfa_Vincoli_Non_Obb(ByVal cod_vinc As String, ByVal giorno As Date)
+        For Each seq In pianificazione.FindAll(Function(x) x.giorno = giorno)
+
+            If seq.cod_seq = "0" AndAlso Not seq.elementi(0).vincolo.vinc_obb AndAlso seq.elementi(0).vincolo.cod_art = cod_vinc Then 'Se è lo stesso vincolo, lo elimino dalla sequenza
+                pianificazione.Remove(seq)
+            End If
+
+        Next
+
+        Compatta_Seq_Giorno(giorno) 'Cerco di eliminare i buchi dalla sequenza
+    End Sub
+
+    'Rendo il più possibili adiacenti le seqeuenze della giornata
+    Public Sub Compatta_Seq_Giorno(ByVal giorno As Date)
+        Dim start_day As Integer = pianificazione.FindIndex(Function(x) x.giorno = giorno)
+        Dim end_day As Integer = pianificazione.FindLastIndex(Function(x) x.giorno = giorno)
+
+        If start_day <> -1 Then
+            For i As Integer = start_day To end_day
+                Dim index As Integer = i
+
+                'Se la seqeunza si può spostare
+                If Not pianificazione(i).Inamovibile() Then
+                    Dim durata As Long = pianificazione(i).Durata()
+
+                    'Se è un articolo, lo attacco alla sequenza precedente
+                    If pianificazione(i).cod_seq <> "0" Then
+                        If i = start_day Then
+                            pianificazione(i).ora_inizio = calendario.Find(Function(x) x.giorno = pianificazione(index).giorno).Ora_Inizio
+                            pianificazione(i).ora_fine = pianificazione(i).ora_inizio + durata
+                        Else
+                            pianificazione(i).ora_inizio = pianificazione(i - 1).ora_fine + 1
+                            pianificazione(i).ora_fine = pianificazione(i).ora_inizio + durata
+                        End If
+                    Else
+                        'Se è un vincolo, lo attacco alla sequenza successiva (cerco sempre di effettuare i vincoli a fine giornata)
+                        If i = end_day Then
+                            pianificazione(i).ora_fine = calendario.Find(Function(x) x.giorno = pianificazione(index).giorno).Ora_Fine
+                            pianificazione(i).ora_inizio = pianificazione(i).ora_fine - durata
+                        Else
+                            pianificazione(i).ora_fine = pianificazione(i + 1).ora_inizio - 1
+                            pianificazione(i).ora_inizio = pianificazione(i).ora_fine - durata
+                        End If
+                    End If
+                End If
+            Next
+        End If
+    End Sub
+
+
+    'Inserisce i vincoli della linea, obbligatori e non, alla data e ora corrette
+    Public Sub Inserisci_Vincoli_Linea()
+
+        Dim vincoli As List(Of Vincolo) = vincoli_linea.FindAll(Function(x) Not Field_Null(x.ora_inizio)) 'Trovo tutti i vincolo con l'ora specificata
+        vincoli.AddRange(vincoli_linea.FindAll(Function(x) Field_Null(x.ora_inizio)).OrderByDescending(Function(x) x.vinc_obb)) 'Ci aggiungo in coda quelli con l'ora non specificata mettendo prima i vincoli obbligatori
+        For Each vinc In vincoli
+
+            If vinc.data > calendario.Last.giorno Then Continue For
+
+            Dim vincolo As Vincolo = vinc
+
+            If vinc.tipo_vinc = "EVE" Then
+                '     calendario.Find(Function(x) x.giorno = vincolo.data).Inserisci_Pausa(StringToSec(vinc.ora_inizio), StringToSec(vinc.ora_fine))
+
+                For i As Integer = 0 To calendario.Count - 1
+                    If calendario(i).giorno = vincolo.data Then
+                        calendario(i).Inserisci_Pausa(StringToSec(vinc.ora_inizio), StringToSec(vinc.ora_fine))
+                    End If
+                Next
+
+            End If
+
+            If vinc.tipo_vinc = "OPE" Then
+                Dim v_cod As String = vinc.cod_art
+                Dim ora_inizio As Long = 0
+                Dim v_index As Integer = info_vinc.FindIndex(Function(x) x.cod_art = v_cod)
+                Dim l_elem As List(Of Elemento) = New List(Of Elemento)
+
+                Dim vinc_bool = True 'valuto se ho vincoli temporali
+
+                If (v_index < 0) Then
+                    v_index = 0
+                    vinc_bool = False
+                End If
+
+                If (info_vinc.FindAll(Function(x) x.cod_art = vincolo.cod_art).Count <> 0) Then
+                    l_elem.Add(New Elemento(vinc, info_vinc.Find(Function(x) x.cod_art = vincolo.cod_art).sec_lav)) 'Aggiungo come unico elemento alla sequenza il vincolo
+                End If
+                If Not Field_Null(vinc.ora_inizio) Then ora_inizio = StringToSec(vinc.ora_inizio) 'Se l'ora è specificata, assegno quella indicata
+
+                'Se non è specificata la data, lo inserisco ogni giorno
+                If vinc.data = Nothing Then
+
+                    Dim ultima_data_pian As Date = New Date(0)
+
+                    If pianificazione.Count > 0 Then ultima_data_pian = pianificazione.Last.giorno
+
+                    For Each giorno In calendario.FindAll(Function(x) x.giorno > ultima_data_pian)
+                        Dim gior As Giorno = giorno
+                        Dim assegnata_ora As Boolean = True
+                        If (ora_inizio = 0 AndAlso vinc_bool = True) Then
+                            ora_inizio = calendario.Find(Function(x) x.giorno = gior.giorno).Ora_Fine() - info_vinc(v_index).sec_lav 'Inserisco sempre all'ultima posizione possibile
+                            assegnata_ora = False
+
+                        End If
+                        If vinc_bool = True Then
+                            If assegnata_ora = True AndAlso calendario.Find(Function(x) x.giorno = gior.giorno).Sovrappone_Pause(ora_inizio, ora_inizio + info_vinc(v_index).sec_lav) Then
+                                errori.Add("conflitto tra vincoli e pause turno, giorno: " & giorno.giorno.Date & " codice vincolo: " & vinc.cod_art)
+                            Else
+                                Dim t_pause As Long = 0
+                                For Each pausa As Orari In calendario.Find(Function(x) x.giorno = gior.giorno).Pause_Giorno()
+                                    If pausa.ora_fine_sec > ora_inizio + 1 Then Exit For
+                                    t_pause += pausa.sec_tempo()
+                                Next
+                                Dim ora_i As Long = ora_inizio - t_pause
+                                Dim ora_f = ora_i + info_vinc(v_index).sec_lav
+                                
+
+                                Aggiungi_Seq("0", giorno.giorno, ora_i, ora_f, l_elem)
+                            End If
+                        End If
+                        If assegnata_ora = False Then ora_inizio = 0
+                    Next
+
+                Else
+                    If vinc.data > pianificazione.Last.giorno Then Continue For
+                    If ora_inizio = 0 Then ora_inizio = calendario.Find(Function(x) x.giorno = vincolo.data).Ora_Fine() - info_vinc(v_index).sec_lav - 1 'Inserisco sempre all'ultima posizione possibile
+                    Dim ora_i As Long = ora_inizio
+                    Dim ora_f As Long = ora_inizio + info_vinc(v_index).sec_lav
+
+                    For Each pausa In calendario.Find(Function(x) x.giorno = vincolo.data).Pause_Giorno()
+                        If pausa.ora_fine_sec <= ora_i Then
+                            ora_i -= pausa.sec_tempo()
+                            ora_f -= pausa.sec_tempo()
+                        Else : Exit For
+                        End If
+                    Next
+                    Aggiungi_Seq("0", vinc.data, ora_i, ora_f, l_elem) 'Se è specificata, lo inserisco solo su quel giorno
+                End If
+
+            End If
+
+        Next
+    End Sub
+
+    'Aggiungo la sequenza alla pianificazione,se possibile, e ne ritorno l'indice
+    Public Function Aggiungi_Seq(ByVal cod_seq As String, ByVal giorno As Date, ByVal ora_i As Long, ByVal ora_f As Long, ByVal l_elem As List(Of Elemento))
+
+        'Se il posto è occupato da un'altra sequenza
+        If Not Possibile_Inserimento(giorno, ora_i, ora_f, calendario) Then
+
+            If cod_seq = "0" Then 'Se la sequenza è un vincolo
+                'Se la vorrei mettere alla fine allora provo a spostarla indietro
+                If ora_f = calendario.Find(Function(x) x.giorno = giorno).Ora_Chiusura() Then
+                    Do
+                        Dim prec = Trova_Precedente(giorno, ora_i, ora_f) 'Trovo la sequenza precedente
+                        Dim spostamento As Long = 0
+
+                        If prec = -2 Then
+                            errori.Add("Errore immissione vincolo nel giorno: " & giorno & " dall' ora: " & SecToString(ora_i) & " all'ora: " & ora_f)
+                        End If
+
+                        'Sposto la sequenza prima della precedente
+                        ora_f = pianificazione(prec).ora_inizio - 1
+                        ora_i = ora_f - l_elem(0).sec_lav
+
+                        If (ora_i < calendario.Find(Function(x) x.giorno = giorno).Ora_Inizio()) Then
+                            errori.Add("Errore immissione vincolo nel giorno: " & giorno & " dall'ora: " & SecToString(ora_i) & " all'ora: " & SecToString(ora_f) & " precedente all'inizio del turno")
+                        End If
+                    Loop While Not Possibile_Inserimento(giorno, ora_i, ora_f, calendario)
+
+                ElseIf ora_f > calendario.Find(Function(x) x.giorno = giorno).Ora_Chiusura() Then
+                    errori.Add("Errore immissione vincolo nel giorno: " & giorno & " dall'ora: " & SecToString(ora_i) & " all'ora: " & SecToString(ora_f) & " successivo alla fine del turno")
+                Else
+                    If calendario.Find(Function(x) x.giorno = giorno).Sovrappone_Pause(ora_i, ora_f) Then
+                        errori.Add("Errore immissione vincolo nel giorno: " & giorno & " dall'ora: " & SecToString(ora_i) & " all'ora: " & SecToString(ora_f) & " si sovrappone ad almeno una pausa")
+                    End If
+                End If
+            Else
+                Return -1
+            End If
+        End If
+
+        'Trovo la prima sequenza che supera l'orario di quella da inserire
+        Dim index As Integer = pianificazione.FindIndex(Function(x) (x.giorno = giorno AndAlso x.ora_inizio > ora_f) OrElse x.giorno > giorno)
+        If index = -1 Then
+            'Se non ci sono sequenze successive allora è l'ultima
+            pianificazione.Add(New Seq_Pian(cod_seq, giorno, ora_i, ora_f, l_elem))
+            Return pianificazione.Count - 1
+        Else : pianificazione.Insert(index, New Seq_Pian(cod_seq, giorno, ora_i, ora_f, l_elem)) 'La inserisco
+        End If
+        Return index
+    End Function
+
+    'Verifico se è possibile inserire la sequenza nel posto indicato
+    Public Function Possibile_Inserimento(ByVal giorno As Date, ByRef ora_i As Long, ByRef ora_f As Long, ByVal calendario As List(Of Giorno))
+
+        Dim gio As Giorno = calendario.Find(Function(x) x.giorno = giorno)
+
+        If IsNothing(gio) Then Return False
+
+        If ora_i < gio.Ora_Inizio() OrElse ora_f > gio.Ora_Chiusura() Then
+            'If ora_f - ora_i > gio.Ora_Fine() - gio.Ora_Inizio() Then
+            '    Return False
+            'End If
+            If pianificazione.Count = 0 Then
+                Dim temp = ora_f - ora_i
+                ora_i = gio.Ora_Inizio()
+                ora_f = ora_i + temp
+            End If
+        End If
+
+        If pianificazione.Count = 0 Then Return True 'Se la linea è vuota posso a prescindere
+
+        Dim prec As Integer = Trova_Precedente(giorno, ora_i, ora_f) 'Cerco la sequenza che sarebbe la precedente se venisse inserita quella nuova
+
+        If prec = -1 Then 'Se non esiste alcuna sequenza precedente
+            If giorno <> pianificazione(0).giorno OrElse pianificazione(0).ora_inizio > ora_f Then
+                Return True
+            Else : Return False
+            End If
+        End If
+
+        If prec = pianificazione.Count - 1 Then Return True
+
+        If (pianificazione(prec + 1).giorno <> giorno OrElse pianificazione(prec + 1).ora_inizio < ora_f) AndAlso prec = -1 Then Return True 'Se la sequenza sarebbe la prima, e la successiva non si sovrappone allora posso inserirla
+
+        'Se è tra due sequenze, o tra sequenza e fine o inizio giornata lavorativa, controllo rispetti gli orari esistenti
+        If ((pianificazione(prec).giorno <> giorno AndAlso ora_i >= gio.Ora_Inizio()) OrElse ora_i > pianificazione(prec).ora_fine) AndAlso
+            ((pianificazione(prec + 1).giorno <> giorno AndAlso ora_f <= gio.Ora_Fine()) OrElse ora_f < pianificazione(prec + 1).ora_inizio) Then Return True
+
+        Return False
+
+    End Function
+
+    'Trovo la sequenza precedente a una da inserire nel giorno e intervallo di tempo indicato ritornandone l'indice, se la sequenza verrebbe messa come prima ritorno - 1, se non vale nessuno dei due casi precedenti, ritorno -2
+    Public Function Trova_Precedente(ByVal giorno As Date, ByVal ora_i As Long, ByVal ora_f As Long)
+        Dim index As Integer = 0
+
+        index = pianificazione.FindLastIndex(Function(x) (x.giorno = giorno AndAlso x.ora_fine < ora_i) OrElse (x.giorno < giorno))
+        Return index
+    End Function
+
+    'Ritorna l'indice, se esiste, di una sequenza già pianificata che prevede quell'articolo e c'è spazio per inserirlo, altrimenti ritorna -1 
+    Public Function Pianificato(ByVal ordine As Ordine, ByRef tempo_agg As Long)
+        Dim i = -1
+        For Each seq_p In pianificazione.FindAll(Function(x) Not IsNothing(sequenze_linea.Find(Function(y) y.cod_seq = x.cod_seq AndAlso y.Produce(ordine)))) 'cerco fra le sequenze che possono produrlo
+            i += 1
+            If i > seq_p.elementi.Count - 1 Then Continue For
+            If IsNothing(seq_p.elementi(i).ordine) Then Continue For
+            Dim sequenza As Seq_Pian = seq_p
+            Dim index As Integer = pianificazione.FindIndex(Function(x) x.Equals(sequenza))
+            Dim tempo As Long = Tempo_Nuovo_Articolo_Seq(seq_p, ordine)
+
+            If (index < pianificazione.Count - 1 AndAlso pianificazione(index + 1).giorno = pianificazione(index).giorno AndAlso tempo < pianificazione(index + 1).ora_inizio - sequenza.ora_fine) OrElse
+                ((index = pianificazione.Count - 1 OrElse pianificazione(index + 1).giorno <> pianificazione(index).giorno) AndAlso tempo <= calendario.Find(Function(x) x.giorno = pianificazione(index).giorno).Ora_Fine() - sequenza.ora_fine) Then
+                tempo_agg = tempo
+                Return index
+            End If
+
+        Next
+        tempo_agg = Integer.MaxValue
+        Return -1 'Non ho trovato un posto adatto, ritorno -1
+    End Function
+
+    'Calcolo il tempo necesssario per la produzione di un nuovo articolo
+    Public Function Tempo_Nuovo_Articolo_Seq(ByVal seq_p As Seq_Pian, ByVal ordine As Ordine) As Long
+        Dim sequenza As Sequenza = sequenze_linea.Find(Function(x) x.cod_seq = seq_p.cod_seq)
+        Dim durata As Long = 0
+        For Each art In sequenza.articoli
+            Dim articolo As Articolo = art
+            'Se c'è un vincolo per articolo che riguarda l'ordine, lo aggiungo
+            If art.vincolo = True AndAlso art.v_per_articolo = True AndAlso A_Comprende_B_Class(art, ordine) Then durata += Durata_Vincolo(art) + 1
+        Next
+       
+        Return durata + 1 + ordine.qta_pz / Get_Pz_Ora(ordine) * 3600
+    End Function
+
+    'Ritorna la durata di una sequenza nella linea con aggiunto l'articolo
+    Public Function Durata_Sequenza(ByVal seq As Sequenza, ByVal ord As Ordine)
+        Dim durata_seq As Long = 0
+        Dim producibile As Boolean = False
+
+        'Per ogni articolo nella sequenza
+        For Each art In seq.articoli
+            'Se l'articolo non è un vincolo e non so ancora se l'ordine è producibile in questa sequenza controllo se lo è
+            If Not art.vincolo Then
+                If producibile = False AndAlso A_Comprende_B_Class(art, ord) Then producibile = True
+            Else
+
+                Dim aggiungo_vinc As Boolean = True
+                If art.cod_tipo = "SEQ" Then
+                    'Se il vincolo è di tipo dipendente dalla sequenza precedente controllo la sequenza precedente, non è quella non faccio nulla
+                    Dim index As Integer = pianificazione.Count - 1
+                    While pianificazione(index).cod_seq = "0" AndAlso index <> 0
+                        index -= 1
+                    End While
+                    If (pianificazione(index).cod_seq <> art.cod_seqprod_cond) Then aggiungo_vinc = False
+                ElseIf art.v_per_articolo = True AndAlso Not A_Comprende_B_Class(art, ord) Then
+                    'Se il vincolo dipende dalla presenza di un articolo, o di una classificazione di articoli e non c'è, non ne conto la durata
+                    aggiungo_vinc = False
+                End If
+
+                If aggiungo_vinc Then durata_seq += Durata_Vincolo(art) + 1 'Se inserisco il vincolo allora aumento la durata totale della sequenza
+            End If
+        Next
+
+        durata_seq += (ord.qta_pz / Get_Pz_Ora(ord)) * 3600 'Aggiungo il tempo di produzione dell'articolo
+
+        If producibile Then Return durata_seq
+        Return False
+    End Function
+
+    Public Function Durata_Vincolo2(ByRef vinc As Object)
+        Dim tempo_lav As Integer = 0 'devo tenere un controllo sul tempo massimo di lavorazione che ho ottenuto
+        If (vincoli_linea.Count <> 0) Then  'Controllo se ho almeno un vincolo 
+            For Each vincolo In vincoli_linea
+                Dim match As Integer = 0
+                'match = A_Comprende_B_Class(vincolo, vinc)
+                For Each info In info_vinc
+                    'trovo gli articoli che corrispondono alla lavorazione
+                    If (vincolo.cod_art = info.cod_art) Then
+                        tempo_lav += info.sec_lav
+                    End If
+                Next
+            Next
+        End If
+        Return tempo_lav
+    End Function
+
+    'Ritorna la durata del vincolo passato come paramentro
+    Public Function Durata_Vincolo(ByRef vinc As Object)
+        Dim max_match As Integer = -1
+        Dim best_index As Integer = 0
+        Dim index As Integer = 0
+
+        If (info_vinc.Count <> 0) Then  'Controllo se ho almeno un vincolo 
+            For Each info In info_vinc
+                Dim match As Integer = 0
+                match = A_Comprende_B_Class(info, vinc)
+
+                If match > max_match OrElse match = max_match AndAlso max_match <> 0 AndAlso info.sec_lav > info_vinc(index).sec_lav Then
+                    max_match = match
+                    best_index = index
+                End If
+
+                index += 1
+            Next
+
+            Return info_vinc(best_index).sec_lav
+        End If
+
+        Return 0
+    End Function
+
+    'Creo una lista di ordini con solo un ordine per ogni cod_art 
+    Public Function SoloUnici(ByRef ordini As List(Of Ordine))
+        Dim new_ordini_unici As List(Of Ordine) = New List(Of Ordine)
+        For Each ordine In ordini
+            Dim ord As Ordine = ordine
+            If new_ordini_unici.FindIndex(Function(x) IsEqual_Class(x, ord)) = -1 Then new_ordini_unici.Add(ordine)
+        Next
+        Return new_ordini_unici
+    End Function
+
+    'Elimino tutte le info_art di articoli non producibili
+    Public Sub Elimina_Info_Non_Prod()
+
+        Dim new_info_art As List(Of Info_Art) = New List(Of Info_Art)
+
+        Dim producibile As Boolean = False
+
+        For Each info In info_art
+            For Each seq In sequenze_linea
+                For Each art In seq.articoli
+                    If A_Comprende_B_Class(info, art) OrElse A_Comprende_B_Class(art, info) Then
+                        producibile = True
+                        Exit For
+                    End If
+                Next
+                If producibile Then Exit For
+            Next
+            If producibile Then new_info_art.Add(info)
+        Next
+
+        info_art = new_info_art
+    End Sub
+
+    'ELimino dalle sequenze linea tutte gli articoli non producibili
+    Public Sub Elimina_Art_Sequenze()
+        Dim new_seq_linea As List(Of Sequenza) = New List(Of Sequenza)
+
+        Dim producibile As Boolean = False
+
+        For Each seq In sequenze_linea
+            Dim new_seq As Sequenza = New Sequenza With {.cod_seq = seq.cod_seq, .des_seq = seq.des_seq, .priorita = seq.priorita}
+            For Each art In seq.articoli
+                If art.vincolo Then
+                    new_seq.articoli.Add(art)
+                Else
+                    producibile = False
+                    For Each info In info_art
+                        If A_Comprende_B_Class(info, art) OrElse A_Comprende_B_Class(art, info) Then
+                            producibile = True
+                            Exit For
+                        End If
+                    Next
+
+                    If Not producibile Then Continue For
+                    new_seq.articoli.Add(art)
+                End If
+            Next
+            new_seq_linea.Add(new_seq)
+        Next
+
+        sequenze_linea = new_seq_linea
+    End Sub
+
+    'Rende tutti le info_art riferite a un codice articolo
+    Public Sub Compatta_Info_Art(ByRef ordini As List(Of Ordine))
+
+        Dim new_info_art As List(Of Info_Art) = New List(Of Info_Art)
+        Dim ordini_unici As List(Of Ordine) = SoloUnici(ordini)
+
+        For Each ordine In ordini_unici
+            Dim max_match As Integer = -1
+            Dim best_index As Integer = 0
+            Dim index As Integer = 0
+
+            For Each info In info_art
+                Dim match As Integer = A_Comprende_B_Class(info, ordine)
+
+                If match > max_match OrElse (match = max_match AndAlso max_match <> 0 AndAlso info.pz_ora > info_art(index).pz_ora) Then 'Se sono uguali coem classificazione scelgo la migliore come pz_ora
+                    max_match = match
+                    best_index = index
+                End If
+                index += 1
+            Next
+
+            'Completa la classificazione
+            If max_match > 4 Then
+                If max_match = 5 Then info_art(best_index).cod_linea = ordine.cod_linea
+                If max_match <= 6 Then info_art(best_index).cod_sett = ordine.cod_sett
+                If max_match <= 7 Then info_art(best_index).cod_fam = ordine.cod_fam
+                If max_match <= 8 Then info_art(best_index).cod_sott = ordine.cod_sott
+            End If
+            new_info_art.Add(info_art(best_index))
+        Next
+    End Sub
+
+    'Ritorna i pz_ora della miglior sequenza della linea riguardo all'articolo dell'ordine, oppure false se non è possibile produrre l'ordine
+    Function Producibile(ByRef ordine As Ordine)
+
+        For Each inf In info_art
+
+            If (inf.cod_art = ordine.cod_art) Then
+                If Best_Seq(ordine, sequenze_linea) = -1 Then 'Associo all'articolo(ordine) da produrre la linea migliore
+                    Return False
+                End If
+                Return inf.pz_ora       'Ritorno il numero di pezzi/ora della miglior linea
+            End If
+        Next
+
+        Return False
+    End Function
+
+    'Ritorna l'indice della miglior NUOVA seq se esiste che produce l'articolo richiesto
+    Function Best_Seq(ByVal ord As Ordine, ByVal seq As List(Of Sequenza))
+
+        Dim min_durata As Long = Integer.MaxValue
+        Dim best_index As Integer = -1
+        Dim index As Integer = 0
+        Dim sequenze As List(Of Sequenza) = seq.Select(Function(item) item.Copy()).OfType(Of Sequenza).ToList()
+
+        sequenze = sequenze.FindAll(Function(x) x.articoli.FindIndex(Function(y) A_Comprende_B_Class(y, ord)) <> -1)
+        If sequenze.Count = 0 Then Return -1
+
+        sequenze.OrderBy(Function(x) x.priorita) 'Ordina le sequenze per priorita assegnata dal cliente
+
+        'Esistono una o più sequenze di priorità maggiore, controllo solo fra queste
+        If Not (sequenze.Last.priorita = 0 OrElse Field_Null(sequenze.Last.priorita)) Then
+            sequenze = sequenze.FindAll(Function(x) x.priorita = sequenze.Last.priorita)
+        End If
+
+        'Scorro le sequenze
+        For Each sequenza In sequenze
+            Dim producibile As Boolean = False
+            Dim durata As Long = Durata_Sequenza(sequenza, ord)
+
+            'Se l'articolo viene prodotto dalla sequenza, allora confronto la durata con quella minima trovata, se è minore aggiorno la minima e l'indice della sequenza migliore
+            If durata Then
+                If min_durata > durata Then
+                    min_durata = durata
+                    best_index = index
+                End If
+            End If
+            index += 1
+        Next
+
+        If best_index = -1 Then Return -1
+        Return seq.FindIndex(Function(x) x.cod_seq = sequenze(best_index).cod_seq)
+    End Function
+
+    'Ritonro la lista ordinata delle migliori seqeunze della linea che producono l'ordine
+    Function Migliori_Seq(ByVal ord As Ordine)
+        Dim sequenze As List(Of Sequenza) = sequenze_linea.Select(Function(item) item.Copy()).OfType(Of Sequenza).ToList()
+        Dim index As Integer = 0
+        Dim migliori_s As List(Of Integer) = New List(Of Integer)
+
+        Do
+            index = Best_Seq(ord, sequenze)
+            If index <> -1 Then
+                sequenze.RemoveAt(index)
+                migliori_s.Add(index)
+            End If
+        Loop While (index <> -1 AndAlso sequenze.Count > 0)
+
+        Return migliori_s
+    End Function
+
+    'provo a calcolare il totale delle tempistiche dei vincoli di lavorazione delle sequenze
+    Function Best_Seq2(ByVal ord As Ordine, ByVal seq As List(Of Sequenza))
+
+        Dim min_durata As Long = Integer.MaxValue
+        Dim best_index As Integer = -1
+        Dim index As Integer = 0
+        Dim sequenze As List(Of Sequenza) = seq.Select(Function(item) item.Copy()).OfType(Of Sequenza).ToList()
+
+        sequenze = sequenze.FindAll(Function(x) x.articoli.FindIndex(Function(y) A_Comprende_B_Class(y, ord)) <> -1)
+        If sequenze.Count = 0 Then Return -1
+
+        sequenze.OrderBy(Function(x) x.priorita) 'Ordina le sequenze per priorita assegnata dal cliente
+
+        'Esistono una o più sequenze di priorità maggiore, controllo solo fra queste
+        If Not (sequenze.Last.priorita = 0 OrElse Field_Null(sequenze.Last.priorita)) Then
+            sequenze = sequenze.FindAll(Function(x) x.priorita = sequenze.Last.priorita)
+        End If
+
+        'Scorro le sequenze
+        For Each sequenza In sequenze
+            Dim producibile As Boolean = False
+            Dim durata_vincoli As Long = 0
+            durata_vincoli = Durata_Sequenza2(sequenza, ord)
+
+            'Devo calcolare le tempistiche dei tempi che non siano di produzione, ovvero tutti i lavaggi e altri vincoli di sequenza
+
+            If durata_vincoli Then
+                If min_durata > durata_vincoli Then
+                    min_durata = durata_vincoli
+                    best_index = index
+                End If
+            End If
+            index += 1
+        Next
+
+        If best_index = -1 Then Return -1
+        Return seq.FindIndex(Function(x) x.cod_seq = sequenze(best_index).cod_seq)
+
+    End Function
+    'Ritorna la durata di tutti i vincoli della sequenza 
+    Public Function Durata_Sequenza2(ByVal seq As Sequenza, ByVal ord As Ordine)
+
+        Dim tempo_vinc As Long = 0
+        For Each art In seq.articoli
+            tempo_vinc += Durata_Vincolo2(art)
+        Next
+        Return tempo_vinc
+    End Function
+
+    'Ritorna true se l'articolo dell'ordine è vincolato alla linea 
+    Function Vincolato(ByRef ord As Ordine)
+
+        For Each vinc In vincoli_linea
+
+            If (vinc.tipo_vinc = "ART") Then
+                If A_Comprende_B_Class(vinc, ord) Then : Return True
+                End If
+            End If
+        Next
+
+        Return False
+    End Function
+
+    'Ritorna il totale dei pezzi prodotti della linea
+    Function Totale_Pz_Linea()
+        Dim tot_pz As Double = 0
+
+        For Each sequenza In pianificazione
+
+            For Each art In sequenza.elementi
+                If Not art.isVinc() Then
+                    If Not art.ordine.tipo_art = "SL" Then
+                        tot_pz += art.ordine.qta_pz
+                    End If
+                End If
+            Next
+        Next
+
+        Return tot_pz
+    End Function
+
+    'Ritorna il tempo totale, in secondi, di occupazione della linea
+    Function Occupazione_Linea()
+        Dim occupazione As Long = 0
+
+        For Each sequenza In pianificazione
+
+            For Each elem In sequenza.elementi
+                occupazione += elem.sec_lav
+            Next
+        Next
+
+        Return occupazione
+    End Function
+
+    'Ritorna il numero di pz_ora dell'articolo nella linea
+    Function Get_Pz_Ora(ByVal ordine As Ordine) As Long
+
+        If info_art.FindIndex(Function(x) x.cod_art = ordine.cod_art) <> -1 Then
+            Return info_art.Find(Function(x) x.cod_art = ordine.cod_art).pz_ora
+        Else
+            Return info_art.Find(Function(x) x.tipo_art = ordine.tipo_art).pz_ora
+        End If
+
+
+    End Function
+
+    'Ritorna true se la linea è vuota (non produce alcun ordine)
+    Function IsEmpty()
+        Dim vuota As Boolean = True
+        For Each seq In pianificazione
+            If seq.cod_seq <> "0" AndAlso seq.fissato = False Then
+                vuota = False
+                Exit For
+            End If
+        Next
+        Return vuota
+    End Function
+
+    'Ritorna il tempo totale di produzione (quando finisce la produzione)
+    Function Tempo_Produzione()
+        If IsEmpty() Then Return 0
+        Dim last_seq As Seq_Pian = pianificazione.FindLast(Function(x) x.cod_seq <> "0")
+        Dim ora_f As Double = last_seq.ora_fine
+        ora_f = calendario.Find(Function(x) x.giorno = last_seq.giorno).Orario_Reale(last_seq.ora_inizio, ora_f).ora_fine_sec
+
+        Return ora_f + calendario.FindAll(Function(x) x.giorno < last_seq.giorno).Count * 86400
+    End Function
+
+    'Calcola i pezzi prodotti da una sequenza pianificata
+    Function Get_Pz_Seq(ByVal seq As Seq_Pian)
+        Dim tot_pz As Double = 0
+
+        For Each ele In seq.elementi
+            If Not ele.isVinc() Then tot_pz += ele.ordine.qta_pz
+        Next
+
+        Return tot_pz
+    End Function
+
+    'Ritorna true se la linea contiene le informazioni relative alla sequenza
+    Function Contiene_Info(ByVal seq As Seq_Pian)
+
+        For Each ele In seq.elementi
+            Dim trovato As Boolean = False
+            Dim elemento As Elemento = ele
+            If ele.isVinc() Then
+                If info_vinc.FindIndex(Function(x) x.cod_art = elemento.vincolo.cod_art) <> -1 Then trovato = True
+            Else
+                If info_art.FindIndex(Function(x) x.cod_art = elemento.ordine.cod_art) <> -1 Then trovato = True
+            End If
+            If trovato = False Then Return False
+        Next
+        Return True
+    End Function
+
+    'Ritorna l'indice della sequenza precedente
+    Public Function Trova_Seq_Precedente(ByVal i_seq As Integer)
+        Dim index As Integer = Nothing
+
+        For index = i_seq - 1 To 0
+            If pianificazione(index).cod_seq <> "0" Then Exit For
+        Next
+
+        Return index
+    End Function
+
+    'Ritorna true se ci sono sovrapposizioni temporali su una linea
+    Public Function Sovrapposizioni()
+
+        For i As Integer = 0 To pianificazione.Count - 2
+            If pianificazione(i).ora_fine >= pianificazione(i + 1).ora_inizio AndAlso pianificazione(i).giorno = pianificazione(i + 1).giorno Then Return True
+        Next
+        Return False
+    End Function
+
+    'Ritorna true se ci sono sequenze in disordine (temporale)
+    Public Function Disordine()
+
+        For i As Integer = 1 To pianificazione.Count - 1
+            If pianificazione(i).giorno < pianificazione(i - 1).giorno Then Return True
+        Next
+
+        Return False
+    End Function
+
+End Class
+
+Public Module linea_class
+
+    'Ritorna il giorno successivo al corrente
+    Public Function Giorno_Successivo(ByVal giorno As Date, ByVal calendario As List(Of Giorno))
+
+        For Each gior In calendario
+            If gior.giorno > giorno Then Return gior.giorno
+        Next
+        If giorno > calendario.Last.giorno Then Return giorno
+        Return calendario.Last.giorno.AddDays(1)
+    End Function
+
+End Module

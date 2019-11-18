@@ -1,0 +1,1334 @@
+Imports Newtonsoft.Json.Linq
+Imports System.IO
+Imports Newtonsoft.Json
+Imports System.Linq
+Imports System.Globalization
+
+
+
+
+Public Module lib_pianprod_auto
+
+    Public Function pianificazione(ByRef dt_ordini As DataTable, ByRef dt_magazzino As DataTable, ByVal tipo_art As String, ByVal da_data As Date, ByVal a_data As Date)
+
+        Dim obj As JObject = New JObject
+        Dim ord_pian As JArray = New JArray
+        Dim art_mag As JArray = New JArray
+        Dim linee As JArray = New JArray
+        Dim info_linea As JArray = New JArray
+        Dim vincoli_linea As JArray = New JArray
+        Dim distinta_base_sm As JArray = New JArray
+        Dim seq_linea As JArray = New JArray
+        Dim elem_seq As JArray = New JArray
+        Dim data_linee As JObject = New JObject
+        Dim art_seq As JArray = New JArray
+        Dim array_seq As JArray = New JArray
+        Dim giorni As JArray = New JArray
+        Dim obj_pt As JObject = Nothing
+        Dim obj_sm As JObject = New JObject
+        Dim obj_seq As JObject = Nothing
+        Dim obj_dct As JObject = New JObject
+        Dim obj_dct_array As JArray = New JArray
+        Dim json As String = Nothing
+        Dim dictionary As New Dictionary(Of String, Integer)
+        Dim dictionary_sl As New Dictionary(Of String, Integer)
+        Dim dictionary_ft As New Dictionary(Of String, Integer)
+        Dim articoli_obj_ret As JArray = New JArray
+        Dim articoli_obj_mag As JArray = New JArray
+        Dim obj_dt_sm As JArray = Nothing
+        obj_dt_sm = New JArray
+        Dim obj_ft As JArray = Nothing
+        obj_ft = New JArray
+
+
+        'tipologia articoli con date di pianificazione
+        obj.Add("tipo_articolo", tipo_art)
+        obj.Add("da_data", da_data)
+        obj.Add("a_data", a_data)
+
+        'creazione di tutti i valori json per articoli da pianificare
+        For Each row As DataRow In dt_ordini.Rows
+            If Getv(row.Item("sel")) = True Then
+                obj_pt = New JObject
+                obj_pt.Add("cod_art", Getv(row.Item("cod_art")).Trim())
+                Dim cod_art_padre As String
+                cod_art_padre = Getv(row.Item("cod_art")).Trim()
+                Dim qta As Double = 0
+                Dim um As String = Getv(row.Item("cod_um"))
+                Dim cod_linea As String = Nothing
+                Dim cod_sett As String = Nothing
+                Dim cod_fam As String = Nothing
+                Dim cod_sott As String = Nothing
+                qta = Calcola_Pezzi(Getv(row.Item("cod_art")), um, Object_Val(Getv(row.Item("qta_ordcli"))))
+                DB_LookUp("cod_linea_gest, cod_sett_gest ,cod_fam_gest, cod_sott_gest", "anaart", "cod_art ='" & Getv(row.Item("cod_art")) & "' ", cod_linea, cod_sett, cod_fam, cod_sott)
+                If Field_Null(cod_linea) Then
+                    cod_linea = ""
+                End If
+                If Field_Null(cod_sett) Then
+                    cod_sett = ""
+                End If
+                If Field_Null(cod_fam) Then
+                    cod_fam = ""
+                End If
+                If Field_Null(cod_sott) Then
+                    cod_sott = ""
+                End If
+                obj_pt.Add("tipo_art", "PF")
+                obj_pt.Add("cod_linea", cod_linea)
+                obj_pt.Add("cod_sett", cod_sett)
+                obj_pt.Add("cod_fam", cod_fam)
+                obj_pt.Add("cod_sott", cod_sott)
+                obj_pt.Add("qta_ordcli", qta)
+                Dim giorni_prod_ant As Integer = Nothing
+                Dim tipo_scadenza As String = Nothing
+                Dim qta_tipo_scadenza As String = Nothing
+                Dim protection_time As String = Nothing
+                Dim scadenza As Integer = Nothing
+                DB_LookUp("giorni_prod_ant, tipo_scadenza, qta_tipo_scad", "anaart", "cod_art ='" & Getv(row.Item("cod_art")) & "' ", giorni_prod_ant, tipo_scadenza, qta_tipo_scadenza)
+                DB_LookUp("protection_time", "azienda_agg", "chiave_reg = 1", protection_time)
+                scadenza = Calcola_Giorni_Scadenza(tipo_scadenza, qta_tipo_scadenza)
+                If Not Field_Null(scadenza) And giorni_prod_ant < scadenza Then
+                    scadenza = giorni_prod_ant
+                End If
+                Dim data_sped As Date
+                Dim ora_sped As Date
+                If Not Field_Null(Getv(row.Item("data_spedizione_ordcli"))) Then
+                    data_sped = Date.ParseExact(Getv(row.Item("data_spedizione_ordcli")), "dd/MM/yyyy", New CultureInfo("it-IT")) 'Date.Parse(Getv(row.Item("data_spedizione_ordcli")))
+                Else
+                    data_sped = Date.ParseExact(Getv(row.Item("data_cons_ordcli")), "dd/MM/yyyy", New CultureInfo("it-IT")) 'Date.Parse(Getv(row.Item("data_spedizione_ordcli")))
+                End If
+
+                If Not Field_Null(Getv(row.Item("ora_spedizione_ordcli"))) Then ora_sped = Date.Parse(Getv(row.Item("ora_spedizione_ordcli")))
+
+                Dim tp As Date = New Date(data_sped.Year, data_sped.Month, data_sped.Day, ora_sped.Hour, ora_sped.Minute, ora_sped.Second)
+                ora_sped = tp
+
+                If Not Field_Null(protection_time) Then
+                    If Not Field_Null(ora_sped) Then
+                        ora_sped.Subtract(Date.Parse(protection_time))
+                    Else
+                        data_sped.Subtract(Date.Parse(protection_time))
+                    End If
+                End If
+                If scadenza <> 0 Then data_sped.Subtract(Date.Parse(scadenza.ToString()))
+                obj_pt.Add("data_spedizione_ordcli", data_sped)
+                obj_pt.Add("ora_spedizione_ordcli", ora_sped)
+                obj_pt.Add("data_cons_ordcli", Getv(row.Item("data_cons_ordcli")))
+                obj_pt.Add("cod_linea_prod_pre", Getv(row.Item("cod_linea_prod_pre")))
+                obj_pt.Add("anno_ord", Convert.ToInt32(Getv(row.Item("anno_ord"))))
+                obj_pt.Add("nr_ord", Convert.ToInt32(Getv(row.Item("nr_ord"))))
+                obj_pt.Add("nr_riga_ord", Convert.ToInt32((row.Item("nr_riga_ord"))))
+                'ottengo la distinta base di ogni "PF"
+                Dim distinta As String
+                distinta = f_pianmrp.Esplosione_Distinta(cod_art_padre, qta, 0, 0, 0, 0, 0) 'ottengo la tabella con la distinta base dell articolo corrente
+                Dim obj_dt As JArray = Nothing
+                obj_dt = New JArray
+
+                articoli_obj_ret = New JArray
+
+                'ottengo la distinta base dei semilavorati che compongono l'articolo
+                obj_dt_sm.Add(Distinta_semi_lav(distinta, dictionary_sl))
+
+                distinta_base_sm.Add(obj_sm)
+                obj_dt = Ottieni_Valori_Obj(distinta, dictionary, articoli_obj_ret, articoli_obj_mag) 'ritorna i valori json degli articoli nella distinta base, e setta la quantità disponibile di ogni elemento
+                obj_pt.Add("materie_prime", obj_dt)
+
+                obj_ft.Add(Ottieni_Valori_Forniture(distinta, dictionary_ft)) 'devo salvare su una variabile che viene messa poi in un array per non perdere i dati
+
+                obj_pt.Add("semi_lavorati", articoli_obj_ret)
+                ord_pian.Add(obj_pt)
+
+                obj_dct = New JObject
+                obj_dct_array = New JArray
+
+            End If
+        Next
+        obj.Add("fornitori", obj_ft)
+        obj.Add("distinta_base_sl", obj_dt_sm)
+        obj.Add("giacenze_magazzino", articoli_obj_mag)
+        obj.Add("ordini_pianificare", ord_pian) 'creo l'array di ordini in pianificazione
+
+        If Not IsNothing(dt_magazzino) Then 'valuto se devo aggiungere ordini pianificati dal magazzino
+            For Each row As DataRow In dt_magazzino.Rows
+                If (row.Item("sel") = True) Then
+                    obj_pt = New JObject
+                    obj_pt.Add("tipo_art", "PF")
+                    obj_pt.Add("cod_art", Getv(row.Item("cod_art")).Trim())
+                    Dim cod_art_padre As String
+                    cod_art_padre = Getv(row.Item("cod_art")).Trim()
+                    Dim qta As Double = 0
+                    Dim um As String = Getv(row.Item("cod_um"))
+                    qta = Calcola_Pezzi(Getv(row.Item("cod_art")), um, Object_Val(Getv(row.Item("qta_um"))))
+                    'obj_pt.Add("qta_pz", qta)
+
+                    Dim cod_linea As String = Nothing
+                    Dim cod_sett As String = Nothing
+                    Dim cod_fam As String = Nothing
+                    Dim cod_sott As String = Nothing
+                    Dim data_sped As Date
+
+                    Dim ora_sped As Date
+
+                    DB_LookUp("cod_linea_gest, cod_sett_gest ,cod_fam_gest, cod_sott_gest", "anaart", "cod_art ='" & Getv(row.Item("cod_art")) & "' ", cod_linea, cod_sett, cod_fam, cod_sott)
+                    If Field_Null(cod_linea) Then
+                        cod_linea = ""
+                    End If
+                    If Field_Null(cod_sett) Then
+                        cod_sett = ""
+                    End If
+                    If Field_Null(cod_fam) Then
+                        cod_fam = ""
+                    End If
+                    If Field_Null(cod_sott) Then
+                        cod_sott = ""
+                    End If
+                    obj_pt.Add("cod_linea", cod_linea)
+                    obj_pt.Add("cod_sett", cod_sett)
+                    obj_pt.Add("cod_fam", cod_fam)
+                    obj_pt.Add("cod_sott", cod_sott)
+                    obj_pt.Add("qta_ordcli", qta)
+
+
+                    data_sped = Date.ParseExact("31/12/2099", "dd/MM/yyyy", New CultureInfo("it-IT"))
+
+
+                    obj_pt.Add("data_spedizione_ordcli", data_sped)
+                    obj_pt.Add("ora_spedizione_ordcli", ora_sped)
+                    obj_pt.Add("data_cons_ordcli", "31/12/2099")
+
+
+                    Dim distinta As String
+                    distinta = f_pianmrp.Esplosione_Distinta(cod_art_padre, qta, 0, 0, 0, 0, 0) 'ottengo la tabella con la distinta base dell articolo corrente
+                    Dim obj_dt As JArray = Nothing
+                    obj_dt = New JArray
+
+                    articoli_obj_ret = New JArray
+
+                    distinta_base_sm.Add(obj_sm)
+                    obj_dt = Ottieni_Valori_Obj(distinta, dictionary, articoli_obj_ret, articoli_obj_mag) 'ritorna i valori json degli articoli nella distinta base, e setta la quantità disponibile di ogni elemento
+                    obj_pt.Add("materie_prime", obj_dt)
+
+                    obj_ft.Add(Ottieni_Valori_Forniture(distinta, dictionary_ft)) 'devo salvare su una variabile che viene messa poi in un array per non perdere i dati
+
+                    obj_pt.Add("semi_lavorati", articoli_obj_ret)
+                    ord_pian.Add(obj_pt)
+
+                    obj_dct = New JObject
+                    obj_dct_array = New JArray
+
+                    art_mag.Add(obj_pt)
+                End If
+            Next
+        End If
+
+        obj.Add("articoli_magazzino", art_mag) 'articoli da pianificare dal magazzino
+
+
+        Dim dr_cod_linea As DB2DataReader = Nothing
+        Dim cmd_cod_linea As DB2Command = Nothing
+        Dim Sql As String
+
+        Sql = ""
+        Sql = Sql & "   SELECT cod_tab " & vbCrLf
+        Sql = Sql & "     FROM tabgen" & vbCrLf
+        Sql = Sql & "    WHERE tipo_tab = 'LPR' " & vbCrLf
+
+        cmd_cod_linea = DB_CommandCreate(Sql)
+        dr_cod_linea = cmd_cod_linea.ExecuteReader
+
+        While dr_cod_linea.Read
+
+            data_linee = New JObject
+            info_linea = New JArray
+            vincoli_linea = New JArray
+            seq_linea = New JArray
+            art_seq = New JArray
+            obj_seq = New JObject
+
+            Dim cod_linea As String = DB_Dsv(dr_cod_linea.Item("cod_tab"))
+
+            data_linee.Add("cod_linea_prod", cod_linea)
+
+            Dim dr_info_linea As DB2DataReader = Nothing
+            Dim cmd_info_linea As DB2Command = Nothing
+
+            Sql = ""
+            Sql = Sql & " SELECT tipo_art, cod_linea, cod_sett, cod_fam, cod_sott, cod_art, pz_ora, min_lav, ragg_prod_linea, cod_dep_linea" & vbCrLf
+            Sql = Sql & " FROM pp_tabpzora" & vbCrLf
+            Sql = Sql & " WHERE cod_linea_prod = '" & cod_linea & "' " & vbCrLf
+            cmd_info_linea = DB_CommandCreate(Sql)
+            dr_info_linea = cmd_info_linea.ExecuteReader
+
+            While dr_info_linea.Read
+                obj_pt = New JObject
+                obj_pt.Add("tipo_art", Getv(dr_info_linea.Item("tipo_art")).Trim())
+                obj_pt.Add("cod_linea", Getv(dr_info_linea.Item("cod_linea")).Trim())
+                obj_pt.Add("cod_sett", Getv(dr_info_linea.Item("cod_sett")).Trim())
+                obj_pt.Add("cod_fam", Getv(dr_info_linea.Item("cod_fam")).Trim())
+                obj_pt.Add("cod_sott", Getv(dr_info_linea.Item("cod_sott")).Trim())
+                obj_pt.Add("cod_art", Getv(dr_info_linea.Item("cod_art")).Trim())
+                If Not Field_Null(Getv(dr_info_linea.Item("pz_ora"))) Then obj_pt.Add("pz_ora", Convert.ToDouble(Getv(dr_info_linea.Item("pz_ora"))))
+                If Not Field_Null(Getv(dr_info_linea.Item("min_lav"))) Then obj_pt.Add("min_lav", Convert.ToInt32(Getv(dr_info_linea.Item("min_lav"))))
+                obj_pt.Add("ragg_prod_linea", Getv(dr_info_linea.Item("ragg_prod_linea")))
+                obj_pt.Add("cod_dep_linea", Getv(dr_info_linea.Item("cod_dep_linea")))
+
+                Dim tipo_art_prod As String = Nothing
+                DB_LookUp("tipo_art_prod", "anaart", "cod_art = '" & Getv(dr_info_linea.Item("cod_art")).Trim() & "' ", tipo_art_prod)
+                obj_pt.Add("tipo_art_prod", tipo_art_prod)
+                info_linea.Add(obj_pt)
+            End While
+            data_linee.Add("info_linea", info_linea)
+
+            Dim dr_vinc_linea As DB2DataReader = Nothing
+            Dim cmd_vinc_linea As DB2Command = Nothing
+
+            Sql = ""
+            Sql = Sql & " SELECT tipo_art, cod_lin, cod_sett, cod_fam, cod_sott, cod_art, tipo_vinc, des_vinc, data, ora_inizio, ora_fine, vinc_obb" & vbCrLf
+            Sql = Sql & " FROM pp_linee_vinc" & vbCrLf
+            Sql = Sql & " WHERE cod_linea_prod = '" & cod_linea & "' " & vbCrLf
+            cmd_vinc_linea = DB_CommandCreate(Sql)
+            dr_vinc_linea = cmd_vinc_linea.ExecuteReader
+
+            While dr_vinc_linea.Read
+                obj_pt = New JObject
+                obj_pt.Add("tipo_art", Getv(dr_vinc_linea.Item("tipo_art")).Trim())
+                obj_pt.Add("cod_linea", Getv(dr_vinc_linea.Item("cod_lin")).Trim())
+                obj_pt.Add("cod_sett", Getv(dr_vinc_linea.Item("cod_sett")).Trim())
+                obj_pt.Add("cod_fam", Getv(dr_vinc_linea.Item("cod_fam")).Trim())
+                obj_pt.Add("cod_sott", Getv(dr_vinc_linea.Item("cod_sott")).Trim())
+                obj_pt.Add("cod_art", Getv(dr_vinc_linea.Item("cod_art")).Trim())
+                obj_pt.Add("tipo_vinc", Getv(dr_vinc_linea.Item("tipo_vinc")).Trim())
+                obj_pt.Add("des_vinc", Getv(dr_vinc_linea.Item("des_vinc")).Trim())
+                obj_pt.Add("data", Getv(dr_vinc_linea.Item("data")).Trim())
+                obj_pt.Add("ora_inizio", Getv(dr_vinc_linea.Item("ora_inizio")).Trim())
+                obj_pt.Add("ora_fine", Getv(dr_vinc_linea.Item("ora_fine")).Trim())
+                obj_pt.Add("vinc_obb", Getv(dr_vinc_linea.Item("vinc_obb")).Trim())
+
+                vincoli_linea.Add(obj_pt)
+            End While
+            data_linee.Add("vincoli_linea", vincoli_linea)
+
+            Dim dr_seq_linea As DB2DataReader = Nothing
+            Dim cmd_seq_linea As DB2Command = Nothing
+
+            Sql = ""
+            Sql = Sql & " SELECT cod_seq, des_seq, priorita" & vbCrLf
+            Sql = Sql & " FROM pp_seqprod" & vbCrLf
+            Sql = Sql & " WHERE cod_linea_prod = '" & cod_linea & "' " & vbCrLf
+            cmd_seq_linea = DB_CommandCreate(Sql)
+            dr_seq_linea = cmd_seq_linea.ExecuteReader
+
+            While dr_seq_linea.Read
+                obj_seq = New JObject
+                Dim cod_seq As Object = Getv(dr_seq_linea.Item("cod_seq")).Trim()
+                obj_seq.Add("cod_seq", Getv(dr_seq_linea.Item("cod_seq")).Trim())
+                obj_seq.Add("des_seq", Getv(dr_seq_linea.Item("des_seq")).Trim())
+                obj_seq.Add("priorita", Getv(dr_seq_linea.Item("priorita")).Trim())
+
+                Dim dr_art_seq As DB2DataReader = Nothing
+                Dim cmd_art_seq As DB2Command = Nothing
+
+                Sql = ""
+                Sql = Sql & " SELECT vincolo, tipo_art, cod_linea, cod_sett, cod_fam, cod_sott, cod_art, cod_tipo, v_per_articolo, cod_seqprod_cond, seq_ordine" & vbCrLf
+                Sql = Sql & " FROM pp_seqprod_det" & vbCrLf
+                Sql = Sql & " WHERE cod_seqprod = '" & cod_seq & "' " & vbCrLf
+                cmd_art_seq = DB_CommandCreate(Sql)
+                dr_art_seq = cmd_art_seq.ExecuteReader
+
+
+                While dr_art_seq.Read
+                    obj_pt = New JObject
+                    obj_pt.Add("vincolo", Getv(dr_art_seq.Item("vincolo")).Trim())
+                    obj_pt.Add("tipo_art", Getv(dr_art_seq.Item("tipo_art")).Trim())
+                    obj_pt.Add("cod_linea", Getv(dr_art_seq.Item("cod_linea")).Trim())
+                    obj_pt.Add("cod_sett", Getv(dr_art_seq.Item("cod_sett")).Trim())
+                    obj_pt.Add("cod_fam", Getv(dr_art_seq.Item("cod_fam")).Trim())
+                    obj_pt.Add("cod_sott", Getv(dr_art_seq.Item("cod_sott")).Trim())
+                    obj_pt.Add("cod_art", Getv(dr_art_seq.Item("cod_art")).Trim())
+                    'obj_pt.Add("des_art", Getv(dr_art_seq.Item("des_art")).Trim())
+                    obj_pt.Add("cod_tipo", Getv(dr_art_seq.Item("cod_tipo")).Trim())
+                    obj_pt.Add("v_per_articolo", Getv(dr_art_seq.Item("v_per_articolo")).Trim())
+                    obj_pt.Add("cod_seqprod_cond", Getv(dr_art_seq.Item("cod_seqprod_cond")).Trim())
+                    obj_pt.Add("seq_ordine", Getv(dr_art_seq.Item("seq_ordine")).Trim())
+
+                    art_seq.Add(obj_pt)
+                End While
+                obj_seq.Add("art_seq", art_seq)
+                seq_linea.Add(obj_seq)
+            End While
+            data_linee.Add("sequenze_linea", seq_linea)
+
+            linee.Add(data_linee)
+
+        End While
+        data_linee = New JObject
+        data_linee.Add("cod_linea_prod", "")
+        data_linee.Add("info_linea", New JArray())
+        data_linee.Add("vincoli_linea", New JArray())
+
+        Dim dr_seq_linea_gen As DB2DataReader = Nothing
+        Dim cmd_seq_linea_gen As DB2Command = Nothing
+
+        Sql = ""
+        Sql = Sql & " SELECT cod_seq, des_seq, priorita" & vbCrLf
+        Sql = Sql & " FROM pp_seqprod" & vbCrLf
+        Sql = Sql & " WHERE cod_linea_prod IS NULL " & vbCrLf
+        cmd_seq_linea_gen = DB_CommandCreate(Sql)
+        dr_seq_linea_gen = cmd_seq_linea_gen.ExecuteReader
+
+        array_seq = New JArray
+        While dr_seq_linea_gen.Read
+
+            obj_seq = New JObject
+            art_seq = New JArray
+            Dim cod_seq_gen As Object = Getv(dr_seq_linea_gen.Item("cod_seq")).Trim()
+            obj_seq.Add("cod_seq", Getv(dr_seq_linea_gen.Item("cod_seq")).Trim())
+            obj_seq.Add("des_seq", Getv(dr_seq_linea_gen.Item("des_seq")).Trim())
+            If Field_Null(Getv(dr_seq_linea_gen.Item("priorita")).Trim()) Then
+                obj_seq.Add("priorita", 0)
+            Else
+                obj_seq.Add("priorita", Getv(dr_seq_linea_gen.Item("priorita")).Trim())
+            End If
+
+            Dim dr_art_seq_gen As DB2DataReader = Nothing
+            Dim cmd_art_seq_gen As DB2Command = Nothing
+
+            Sql = ""
+            Sql = Sql & " SELECT pp_seqprod_det.*, anaart.des_art " & vbCrLf
+            Sql = Sql & " FROM pp_seqprod_det, OUTER anaart" & vbCrLf
+            Sql = Sql & " WHERE cod_seqprod ='" & cod_seq_gen & "' " & vbCrLf
+            Sql = Sql & "   AND pp_seqprod_det.cod_art = anaart.cod_art" & vbCrLf
+            cmd_art_seq_gen = DB_CommandCreate(Sql)
+            dr_art_seq_gen = cmd_art_seq_gen.ExecuteReader
+
+            While dr_art_seq_gen.Read
+                obj_pt = New JObject
+                obj_pt.Add("cod_seqprod", Getv(dr_art_seq_gen.Item("cod_seqprod")).Trim())
+                obj_pt.Add("vincolo", Getv(dr_art_seq_gen.Item("vincolo")).Trim())
+                obj_pt.Add("tipo_art", Getv(dr_art_seq_gen.Item("tipo_art")).Trim())
+                obj_pt.Add("cod_linea", Getv(dr_art_seq_gen.Item("cod_linea")).Trim())
+                obj_pt.Add("cod_sett", Getv(dr_art_seq_gen.Item("cod_sett")).Trim())
+                obj_pt.Add("cod_fam", Getv(dr_art_seq_gen.Item("cod_fam")).Trim())
+                obj_pt.Add("cod_sott", Getv(dr_art_seq_gen.Item("cod_sott")).Trim())
+                obj_pt.Add("cod_art", Getv(dr_art_seq_gen.Item("cod_art")).Trim())
+                obj_pt.Add("des_art", Getv(dr_art_seq_gen.Item("des_art")).Trim())
+                obj_pt.Add("cod_tipo", Getv(dr_art_seq_gen.Item("cod_tipo")).Trim())
+                obj_pt.Add("v_per_articolo", Getv(dr_art_seq_gen.Item("v_per_articolo")).Trim())
+                obj_pt.Add("cod_seqprod_cond", Getv(dr_art_seq_gen.Item("cod_seqprod_cond")).Trim())
+                obj_pt.Add("seq_ordine", Getv(dr_art_seq_gen.Item("seq_ordine")).Trim())
+
+                art_seq.Add(obj_pt)
+            End While
+            obj_seq.Add("art_seq", art_seq)
+            array_seq.Add(obj_seq)
+        End While
+        data_linee.Add("sequenze_linea", array_seq)
+        linee.Add(data_linee)
+        obj.Add("linee_produzione", linee)
+
+        Dim dr_giorni As DB2DataReader = Nothing
+        Dim cmd_giorni As DB2Command = Nothing
+
+        da_data = da_data.ToString.Replace("#", "")
+        a_data = a_data.ToString.Replace("#", "")
+
+        Sql = ""
+        Sql = Sql & "   SELECT giorno, lavorativo " & vbCrLf
+        Sql = Sql & "     FROM tabgiorni" & vbCrLf
+        Sql = Sql & "    WHERE giorno >= '" & da_data & "' AND giorno <= '" & a_data & "' AND lavorativo = 'S' " & vbCrLf
+
+        cmd_giorni = DB_CommandCreate(Sql)
+        dr_giorni = cmd_giorni.ExecuteReader
+        Dim orari As JArray
+
+        While dr_giorni.Read
+            obj_pt = New JObject
+            orari = New JArray
+            Dim orari_obj As JObject = New JObject
+            Dim giorno As Date = Getv(dr_giorni.Item("giorno"))
+
+            obj_pt.Add("giorno", giorno)
+
+            Dim dr_orario_giorno As DB2DataReader = Nothing
+            Dim cmd_orario_giorno As DB2Command = Nothing
+
+            Sql = ""
+            Sql = Sql & " SELECT ora_inizio_turno, ora_fine_turno" & vbCrLf
+            Sql = Sql & " FROM pp_tabcalsett" & vbCrLf
+            Sql = Sql & " WHERE giorno_sett ='" & giorno.DayOfWeek & "' " & "AND ragg_prod_sett = '***'" & vbCrLf
+            cmd_orario_giorno = DB_CommandCreate(Sql)
+            dr_orario_giorno = cmd_orario_giorno.ExecuteReader
+
+            While dr_orario_giorno.Read
+                orari_obj = New JObject
+
+                orari_obj.Add("ora_inizio", Getv(dr_orario_giorno("ora_inizio_turno")))
+                orari_obj.Add("ora_fine", Getv(dr_orario_giorno("ora_fine_turno")))
+
+                orari.Add(orari_obj)
+            End While
+
+            obj_pt.Add("orari", orari)
+            giorni.Add(obj_pt)
+        End While
+        obj.Add("giorni_produzione", giorni)
+
+        Dim da_data_path As String = da_data.Day & "-" & da_data.Month & "-" & da_data.Year
+        Dim a_data_path As String = a_data.Day & "-" & a_data.Month & "-" & a_data.Year
+
+        Dim path As String = IO.Path.Combine("c:\pp_pianprod", DB_GetConnectionInfo("DB"), tipo_art & "_" & da_data_path & "_" & a_data_path & "_inp.json")
+        'Dim path As String = IO.Path.Combine("c:\pp_pianprod", DB_GetConnectionInfo("DB"), tipo_art & "_" & da_data_path & "_" & a_data_path & "_inp.json")
+
+        If Not IO.Directory.Exists(IO.Path.Combine("c:\pp_pianprod", DB_GetConnectionInfo("DB"))) Then
+            IO.Directory.CreateDirectory(IO.Path.Combine("c:\pp_pianprod", DB_GetConnectionInfo("DB")))
+        End If
+
+        Using output As StreamWriter = New StreamWriter(path)
+            output.Write(obj.ToString)
+        End Using
+
+        Return path
+    End Function
+    Function RemoveCharacter(ByVal stringToCleanUp, ByVal characterToRemove)
+        ' replace the target with nothing
+        'Replace() returns a new String and does not modify the current one
+        Return stringToCleanUp.Replace(characterToRemove, ".")
+    End Function
+    'ottiene la distinta base dei semilavorati di ogni articolo
+    Public Function Distinta_semi_lav(ByVal distinta As String, ByRef dictionary As Dictionary(Of String, Integer))
+
+        Dim dr_distinta As DB2DataReader = Nothing
+        Dim cmd_distinta As DB2Command = Nothing
+        Dim Sql As String
+        Dim obj_sm As JObject = New JObject
+
+        Sql = ""
+        Sql = Sql & "   SELECT * " & vbCrLf
+        Sql = Sql & "     FROM " & distinta & vbCrLf 'passo il valore contenuto nella variabile come nome della tabella
+
+        DB_DataReaderClose(dr_distinta, cmd_distinta)
+        cmd_distinta = DB_CommandCreate(Sql)
+        DB_DataReaderExecute(dr_distinta, cmd_distinta)
+
+        Dim json_sm As JArray = New JArray
+        Dim array_temp As JArray = New JArray
+
+        While dr_distinta.Read
+
+            ''settare i campi della tabella da mettere in json
+            If String.Equals(Getv(dr_distinta("tipo_art_prod")), "SL") Then 'se sono su un semilavorato devo ottenerne la distinta base
+                If Not dictionary.ContainsKey(Getv(dr_distinta("cod_art"))) Then
+                    obj_sm = New JObject
+
+                    Dim cod_art_padre As String
+                    cod_art_padre = Getv(dr_distinta("cod_art")).Trim()
+                    obj_sm.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+                    obj_sm.Add("tipo_art", "SL")
+                    Dim qta As Double = 0
+                    Dim um As String = Getv(dr_distinta("cod_um"))
+                    Dim cod_linea As String = Nothing
+                    Dim cod_sett As String = Nothing
+                    Dim cod_fam As String = Nothing
+                    Dim cod_sott As String = Nothing
+                    qta = Calcola_Pezzi(Getv(dr_distinta("cod_art")), um, Object_Val(Getv(dr_distinta(1))))
+                    DB_LookUp("cod_linea_gest, cod_sett_gest ,cod_fam_gest, cod_sott_gest", "anaart", "cod_art ='" & Getv(dr_distinta("cod_art")) & "' ", cod_linea, cod_sett, cod_fam, cod_sott)
+                    If Field_Null(cod_linea) Then
+                        cod_linea = ""
+                    End If
+                    If Field_Null(cod_sett) Then
+                        cod_sett = ""
+                    End If
+                    If Field_Null(cod_fam) Then
+                        cod_fam = ""
+                    End If
+                    If Field_Null(cod_sott) Then
+                        cod_sott = ""
+                    End If
+
+                    obj_sm.Add("cod_linea", cod_linea)
+                    obj_sm.Add("cod_sett", cod_sett)
+                    obj_sm.Add("cod_fam", cod_fam)
+                    obj_sm.Add("cod_sott", cod_sott)
+                    obj_sm.Add("qta_ordcli", qta)
+                    Dim giorni_prod_ant As Integer = Nothing
+                    Dim tipo_scadenza As String = Nothing
+                    Dim qta_tipo_scadenza As String = Nothing
+                    Dim protection_time As String = Nothing
+                    Dim scadenza As Integer = Nothing
+                    DB_LookUp("giorni_prod_ant, tipo_scadenza, qta_tipo_scad", "anaart", "cod_art ='" & Getv(dr_distinta("cod_art")) & "' ", giorni_prod_ant, tipo_scadenza, qta_tipo_scadenza)
+                    DB_LookUp("protection_time", "azienda_agg", "chiave_reg = 1", protection_time)
+                    scadenza = Calcola_Giorni_Scadenza(tipo_scadenza, qta_tipo_scadenza)
+                    If Not Field_Null(scadenza) And giorni_prod_ant < scadenza Then
+                        scadenza = giorni_prod_ant
+                    End If
+                   
+                    dictionary.Add(Getv(dr_distinta("cod_art")), 1)
+                    Dim temp = f_pianmrp.Esplosione_Distinta(Getv(dr_distinta("cod_art")), 1, 0, 0, 0, 0, 0) 'tabella con la distinta base del semi_lavorato
+                    json_sm = Semilavorati_Json(temp, dictionary)
+                    obj_sm.Add("materie_prime", json_sm)
+                    array_temp.Add(obj_sm)
+                End If
+            End If
+        End While
+        Return array_temp
+    End Function
+    Public Function Semilavorati_Json(ByVal distinta, ByRef dictionary)
+        Dim art_obj_mp As JObject = New JObject
+        Dim articoli_obj_mp As JArray = New JArray
+        Dim articoli_obj As JArray
+        Dim dr_distinta As DB2DataReader = Nothing
+        Dim cmd_distinta As DB2Command = Nothing
+        Dim Sql As String
+
+        articoli_obj = New JArray
+
+        Sql = ""
+        Sql = Sql & "   SELECT * " & vbCrLf
+        Sql = Sql & "     FROM " & distinta & vbCrLf 'passo il valore contenuto nella variabile come nome della tabella
+
+        DB_DataReaderClose(dr_distinta, cmd_distinta)
+        cmd_distinta = DB_CommandCreate(Sql)
+        DB_DataReaderExecute(dr_distinta, cmd_distinta)
+
+        While dr_distinta.Read
+            'leggo le materie prime presenti nel semilavorato
+            art_obj_mp = New JObject
+            art_obj_mp.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+            Dim qta_trasf As Double = Getv(dr_distinta("qta"))
+            art_obj_mp.Add("qta", qta_trasf)
+            articoli_obj_mp.Add(art_obj_mp)
+        End While
+
+        Return articoli_obj_mp 'insieme delle materie prime in formato json
+
+    End Function
+
+    'data la tabella con gli articoli della distinta base li ritorna in formato json, crea anche il dictionary di materie prime e semilavorati a magazzino
+    Public Function Ottieni_Valori_Obj(ByVal distinta As String, ByRef dictionary As Dictionary(Of String, Integer),
+                                       ByRef articoli_obj_sl As JArray, ByRef articoli_obj_mag As JArray)
+
+        Dim art_obj_mp As JObject
+        Dim art_obj_sl As JObject
+        Dim art_obj_mag As JObject
+        Dim articoli_obj_mp As JArray
+        Dim articoli_obj As JArray
+        Dim dr_distinta As DB2DataReader = Nothing
+        Dim cmd_distinta As DB2Command = Nothing
+        Dim Sql As String
+
+        articoli_obj = New JArray
+
+        Sql = ""
+        Sql = Sql & "   SELECT * " & vbCrLf
+        Sql = Sql & "     FROM " & distinta & vbCrLf 'passo il valore contenuto nella variabile come nome della tabella
+
+        DB_DataReaderClose(dr_distinta, cmd_distinta)
+        cmd_distinta = DB_CommandCreate(Sql)
+        DB_DataReaderExecute(dr_distinta, cmd_distinta)
+
+        'ciclo while per leggere i dati
+        articoli_obj_sl = New JArray
+        articoli_obj_mp = New JArray
+        While dr_distinta.Read
+
+            art_obj_mp = New JObject
+            art_obj_sl = New JObject
+            art_obj_mag = New JObject
+            'settare i campi della tabella da mettere in json
+            If String.Equals(Getv(dr_distinta("tipo_art_prod")), "MP") Then
+                art_obj_mp.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+                Dim qta_trasf = Getv(dr_distinta("qta"))
+                qta_trasf = RemoveCharacter(qta_trasf, ",")
+                art_obj_mp.Add("qta", qta_trasf)
+                articoli_obj_mp.Add(art_obj_mp)
+            Else
+                art_obj_sl.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+                Dim qta_trasf = Getv(dr_distinta("qta"))
+                qta_trasf = RemoveCharacter(qta_trasf, ",")
+                art_obj_sl.Add("qta", qta_trasf)
+                articoli_obj_sl.Add(art_obj_sl)
+            End If
+            'controllo se ci sono chiavi duplicate, nel caso ci siano aggiungo alla quantità di quella chiave la qta corrente
+            If Not dictionary.ContainsKey(Getv(dr_distinta("cod_art"))) Then
+                dictionary.Add(Getv(dr_distinta("cod_art")), Getv(dr_distinta("qta_giace")))
+                art_obj_mag.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+                Dim qta_trasf As Double = Getv(dr_distinta("qta_giace"))
+                art_obj_mag.Add("qta", qta_trasf)
+                articoli_obj_mag.Add(art_obj_mag)
+            Else
+                Dim uso As String = Getv(dr_distinta("cod_art"))
+                Dim temp As Integer = dictionary(uso)
+                Dim qta_trasf = Getv(dr_distinta("qta_giace"))
+                qta_trasf = Math.Floor(Convert.ToDouble(qta_trasf))
+
+                dictionary(uso) = qta_trasf + temp
+            End If
+
+        End While
+
+        Return articoli_obj_mp 'ritorno le materie prime
+
+    End Function
+
+    'data la tabella con gli articoli della distinta base li ritorna in formato json, crea anche il dictionary di materie prime e semilavorati a magazzino
+    Public Function Ottieni_Valori_Forniture(ByVal distinta As String, ByRef dictionary As Dictionary(Of String, Integer))
+
+        Dim art_obj As JObject
+        Dim articoli_obj As JArray
+        Dim dr_distinta As DB2DataReader = Nothing
+        Dim cmd_distinta As DB2Command = Nothing
+        Dim Sql As String
+
+        articoli_obj = New JArray
+
+        Sql = ""
+        Sql = Sql & "   SELECT * " & vbCrLf
+        Sql = Sql & "     FROM " & distinta & vbCrLf 'passo il valore contenuto nella variabile come nome della tabella
+
+        DB_DataReaderClose(dr_distinta, cmd_distinta)
+        cmd_distinta = DB_CommandCreate(Sql)
+        DB_DataReaderExecute(dr_distinta, cmd_distinta)
+
+        'ciclo while per leggere i dati
+        articoli_obj = New JArray
+        While dr_distinta.Read
+            art_obj = New JObject
+            'settare i campi della tabella da mettere in json
+            If Getv(dr_distinta("data_cons")) = "" Then
+                Continue While
+            End If
+
+            'controllo se ci sono chiavi duplicate, nel caso ci siano aggiungo alla quantità di quella chiave la qta corrente
+            If Not dictionary.ContainsKey(Getv(dr_distinta("cod_art"))) Then
+                dictionary.Add(Getv(dr_distinta("cod_art")), Getv(dr_distinta("qta_giace")))
+
+                art_obj.Add("cod_art", Getv(dr_distinta("cod_art")).Trim())
+                Dim qta_trasf = Getv(dr_distinta("qta_ordforn"))
+                qta_trasf = RemoveCharacter(qta_trasf, ",")
+                art_obj.Add("qta", qta_trasf)
+                art_obj.Add("data_consegna", Getv(dr_distinta("data_cons")))
+                If Not IsNothing(art_obj) Then
+                    articoli_obj.Add(art_obj)
+                End If
+            Else
+                Dim uso As String = Getv(dr_distinta("cod_art"))
+                Dim temp As Integer = dictionary(uso)
+                Dim qta_trasf = Getv(dr_distinta("qta_ordforn"))
+                qta_trasf = Math.Floor(Convert.ToDouble(qta_trasf))
+                dictionary(uso) = qta_trasf + temp
+
+            End If
+
+
+
+        End While
+
+        Return articoli_obj 'ritorno le materie prime
+
+    End Function
+
+
+    Public Function Calcola_Giorni_Scadenza(ByVal um, ByVal qta)
+        If Field_Null(um) OrElse Field_Null(qta) Then Return 0
+        Select Case um
+            Case "SET"
+                Return qta * 7
+            Case "MES"
+                Return qta * 30
+            Case Else
+                Return qta
+        End Select
+    End Function
+
+    Public Function Calcola_Pezzi(ByVal cod_art As String, ByVal Tipo_Um_Let As String, ByVal QtaLetta As Double)
+        Dim Cf_X_Co As Double
+        Dim Pz_X_Cf As Double
+        Dim Pe_X_Cf As Double
+        Dim Co_X_Cf As Double
+        Dim Cf_X_Pz As Double
+        Dim Cf_X_Pe As Double
+
+        Dim QtaCo As Double
+        Dim QtaPz As Double
+        Dim QtaPe As Double
+        Dim QtaCf As Double
+
+        DB_LookUp("conf_collo", "anaart", "cod_art = '" & cod_art & "' ", Cf_X_Co)
+        DB_LookUp("pezzi_conf", "anaart", "cod_art = '" & cod_art & "' ", Pz_X_Cf)
+        DB_LookUp("peso_netto_conf", "anaart", "cod_art = '" & cod_art & "' ", Pe_X_Cf)
+
+        If Cf_X_Co = 0 Then
+            Co_X_Cf = 0
+        Else
+            Co_X_Cf = 1 / Cf_X_Co
+        End If
+
+        If Pz_X_Cf = 0 Then
+            Cf_X_Pz = 0
+        Else
+            Cf_X_Pz = 1 / Pz_X_Cf
+        End If
+
+        If Pe_X_Cf = 0 Then
+            Cf_X_Pe = 0
+        Else
+            Cf_X_Pe = 1 / Pe_X_Cf
+        End If
+
+        Select Case Tipo_Um_Let.Trim()
+
+            Case "ER"
+                QtaCo = QtaLetta
+                QtaCf = QtaCo * Cf_X_Co
+                QtaPz = QtaCf * Pz_X_Cf
+
+            Case "CF"
+                QtaCf = QtaLetta
+                QtaPz = QtaCf * Pz_X_Cf
+
+            Case "KG"
+                QtaPe = QtaLetta
+                QtaCf = QtaPe * Cf_X_Pe
+                QtaPz = QtaCf * Pz_X_Cf
+
+            Case Else
+                QtaPz = QtaLetta
+
+        End Select
+
+        QtaPz = Math.Round(QtaPz, 3)
+        Return QtaPz
+
+    End Function
+
+
+    Public Function Parsing_File_Input(ByVal path_to_file As String, ByRef Ordini_Clienti As List(Of Ordine), ByRef Linee_Produzione As List(Of Linea), ByRef Articoli_Magazzino As List(Of Articolo_Magazzino), ByRef Calendario As List(Of Giorno), ByRef tipo_articolo As String, ByRef da_data As Date, ByRef a_data As Date, ByRef magazzino As Giacenze_Magazzino, ByRef Ordini_Semilavorati As List(Of Ordine), ByRef Ordini_Fornitori As Ordini_Fornitori) As Boolean
+
+        Dim json_reader As JsonTextReader
+        Dim jobj As JObject
+        Dim json_array As JArray
+        Dim json_array_db As JArray
+        Dim json_array_info As JArray
+        Dim json_array_vincoli As JArray
+        Dim json_array_sequenze As JArray
+        Dim json_array_art As JArray
+        Dim json_array_orari As JArray
+        Dim json_token As JToken
+        'Dim magazzino As Giacenze_Magazzino = New Giacenze_Magazzino
+
+        Parsing_File_Input = False
+
+        Using reader = New StreamReader(path_to_file)
+
+            json_reader = New JsonTextReader(reader)
+            jobj = CType(JToken.ReadFrom(json_reader), JObject)
+
+            ' Leggo informazioni relative alla pianificazione
+            json_token = jobj.SelectToken("tipo_articolo")
+
+            If Not json_token Is Nothing Then
+                tipo_articolo = json_token.Value(Of String)()
+            End If
+
+            json_token = jobj.SelectToken("da_data")
+
+            If Not json_token Is Nothing Then
+                da_data = json_token.Value(Of Date)()
+            End If
+
+            json_token = jobj.SelectToken("a_data")
+
+            If Not json_token Is Nothing Then
+                a_data = json_token.Value(Of Date)()
+            End If
+
+            'Leggo le giacenze in magazzino
+            json_array = jobj.SelectToken("giacenze_magazzino")
+            If Not json_array Is Nothing Then
+
+                For Each mag As JObject In json_array.Children(Of JObject)()
+                    Dim test2 As Giacenza = New Giacenza
+                    For Each nodo As JProperty In mag.Properties
+                        Select Case nodo.Name
+                            Case "cod_art"
+                                test2.cord_art_gia = nodo.Value
+                            Case "qta"
+                                test2.qta_gia = Convert.ToDouble(nodo.Value)
+                        End Select
+                    Next
+                    magazzino.giacenze.Add(test2)
+                Next
+
+            End If
+
+            'Leggo le quantità di mat_prime per la realizzazione dei semilav
+            json_array = jobj.SelectToken("distinta_base_sl")
+            If Not json_array Is Nothing Then
+
+                For Each magt In json_array.Children(Of JArray)()
+                    For Each mag In magt.Children(Of JObject)()
+                        Dim ordine_sl As Ordine = New Ordine
+                        For Each nodo As JProperty In mag.Properties
+                            Select Case nodo.Name
+                                Case "tipo_art"
+                                    ordine_sl.tipo_art = nodo.Value
+                                Case "cod_art"
+                                    ordine_sl.cod_art = nodo.Value
+                                Case "cod_linea"
+                                    ordine_sl.cod_linea = nodo.Value
+                                Case "cod_sett"
+                                    ordine_sl.cod_sett = nodo.Value
+                                Case "cod_fam"
+                                    ordine_sl.cod_fam = nodo.Value
+                                Case "cod_sott"
+                                    ordine_sl.cod_sott = nodo.Value
+
+                                Case "qta_ordcli"
+                                    ordine_sl.qta_pz = nodo.Value
+
+                                Case "materie_prime"
+                                    json_array_db = nodo.Value
+                                    ' ordine_cli.
+                                    For Each info As JObject In json_array_db.Children(Of JObject)()
+                                        'dichiaro variabili
+                                        Dim test As Distinta_base = New Distinta_base
+                                        For Each temp As JProperty In info.Properties
+
+                                            Select Case temp.Name
+                                                Case "cod_art"
+                                                    test.cod_art_db = temp.Value
+                                                Case "qta"
+                                                    test.qta_db = temp.Value
+                                            End Select
+
+                                        Next
+                                        ordine_sl.mat_prime.Add(test)
+                                    Next
+
+
+                            End Select
+                        Next
+                        Ordini_Semilavorati.Add(ordine_sl)
+                    Next
+                Next
+
+            End If
+
+            'Leggo le quantità di mat_prime per la realizzazione dei semilav
+            json_array = jobj.SelectToken("fornitori")
+            If Not json_array Is Nothing Then
+
+                For Each magt In json_array.Children(Of JArray)()
+                    For Each mag In magt.Children(Of JObject)()
+                        Dim ordine_ft As Fornitura = New Fornitura
+                        For Each nodo As JProperty In mag.Properties
+                            Select nodo.Name
+                                Case "cod_art"
+                                    ordine_ft.cod_art_f = nodo.Value
+                                Case "qta"
+                                    ordine_ft.qta_f = nodo.Value
+                                Case "data_consegna"
+                                    ordine_ft.data_f = Date.Parse(nodo.Value)
+                            End Select
+                        Next
+                        Ordini_Fornitori.forniture.Add(ordine_ft)
+                    Next
+                Next
+            End If
+
+            ' Leggo la sezione ord_cli che contiene gli ordini clienti
+            json_array = jobj.SelectToken("ordini_pianificare")
+
+            If Not json_array Is Nothing Then
+
+                Dim counter As Integer = 0
+                For Each ord_cli As JObject In json_array.Children(Of JObject)()
+
+                    Dim ordine_cli As Ordine = New Ordine
+                    For Each nodo As JProperty In ord_cli.Properties
+
+                        Select Case nodo.Name
+                            Case "tipo_art"
+                                ordine_cli.tipo_art = nodo.Value
+                            Case "cod_art"
+                                ordine_cli.cod_art = nodo.Value
+                            Case "cod_linea"
+                                ordine_cli.cod_linea = nodo.Value
+                            Case "cod_sett"
+                                ordine_cli.cod_sett = nodo.Value
+                            Case "cod_fam"
+                                ordine_cli.cod_fam = nodo.Value
+                            Case "cod_sott"
+                                ordine_cli.cod_sott = nodo.Value
+
+                            Case "qta_ordcli"
+                                ordine_cli.qta_pz = nodo.Value
+
+                            Case "data_spedizione_ordcli"
+                                If Not Field_Null(nodo.Value) Then
+                                    ordine_cli.data_spedizione_ordcli = nodo.Value
+                                    'ordine_cli.data_spedizione_ordcli = "07/11/2019 00:00:00"
+                                End If
+                            Case "ora_spedizione_ordcli"
+                                ordine_cli.ora_spedizione_ordcli = nodo.Value
+
+                            Case "data_cons_ordcli"
+                                If Not Field_Null(nodo.Value) Then
+                                    ordine_cli.data_cons_ordcli = Date.Parse(nodo.Value)
+                                End If
+                            Case "cod_linea_prod_pre"
+                                ordine_cli.cod_linea_prod_pre = nodo.Value
+
+                            Case "anno_ord"
+                                ordine_cli.anno_ord = nodo.Value
+
+                            Case "nr_ord"
+                                ordine_cli.nr_ord = nodo.Value
+
+                            Case "nr_riga_ord"
+                                ordine_cli.nr_riga_ord = nodo.Value
+
+                            Case "materie_prime"
+                                json_array_db = nodo.Value
+                                ' ordine_cli.
+                                For Each info As JObject In json_array_db.Children(Of JObject)()
+                                    'dichiaro variabili
+                                    Dim test As Distinta_base = New Distinta_base
+                                    For Each temp As JProperty In info.Properties
+
+                                        Select Case temp.Name
+                                            Case "cod_art"
+                                                test.cod_art_db = temp.Value
+                                            Case "qta"
+                                                test.qta_db = temp.Value
+                                        End Select
+
+                                    Next
+                                    ordine_cli.mat_prime.Add(test)
+                                Next
+
+                            Case "semi_lavorati"
+                                json_array_db = nodo.Value
+                                ' ordine_cli.
+                                For Each info As JObject In json_array_db.Children(Of JObject)()
+                                    'dichiaro variabili
+                                    Dim test As Distinta_base = New Distinta_base
+                                    For Each temp As JProperty In info.Properties
+
+                                        Select Case temp.Name
+                                            Case "cod_art"
+                                                test.cod_art_db = temp.Value
+                                            Case "qta"
+                                                test.qta_db = temp.Value
+                                        End Select
+
+                                    Next
+                                    ordine_cli.semi_lavorati.Add(test)
+                                Next
+
+                        End Select
+
+                    Next
+
+                    ordine_cli.nr_ordine = counter
+                    counter += 1
+
+                    If ordine_cli.data_spedizione_ordcli = Nothing Then ordine_cli.data_spedizione_ordcli = ordine_cli.data_cons_ordcli
+                    Ordini_Clienti.Add(ordine_cli)
+
+                Next
+            End If
+
+            ' Leggo la sezione art_mag che contiene gli articoli da magazzino
+            json_array = jobj.SelectToken("articoli_magazzino")
+
+            If Not json_array Is Nothing Then
+
+                For Each art_mag As JObject In json_array.Children(Of JObject)()
+
+                    Dim articolo_mag As Articolo_Magazzino = New Articolo_Magazzino
+
+                    For Each nodo As JProperty In art_mag.Properties
+
+                        Select Case nodo.Name
+                            Case "tipo_art"
+                                articolo_mag.tipo_art = nodo.Value
+
+                            Case "cod_art"
+                                articolo_mag.cod_art = nodo.Value
+
+                            Case "qta_ordcli"
+                                articolo_mag.qta_pz = nodo.Value
+
+                        End Select
+                    Next
+
+                    Articoli_Magazzino.Add(articolo_mag)
+
+                Next
+            End If
+
+            ' Leggo la sezione linee_produzione che contiene le linee
+            json_array = jobj.SelectToken("linee_produzione")
+
+            If Not json_array Is Nothing Then
+
+
+                For Each lin As JObject In json_array.Children(Of JObject)()
+
+                    Dim linea As Linea = New Linea
+
+                    For Each nodo As JProperty In lin.Properties
+
+                        Select Case nodo.Name
+                            Case "cod_linea_prod"
+                                linea.cod_linea_prod = nodo.Value
+
+                            Case "info_linea"
+
+                                json_array_info = nodo.Value
+
+                                For Each info As JObject In json_array_info.Children(Of JObject)()
+
+                                    Dim info_linea_art As Info_Art = New Info_Art
+                                    Dim info_linea_vinc As Info_Vinc = New Info_Vinc
+                                    Dim articolo As Boolean = True
+                                    For Each temp As JProperty In info.Properties
+
+                                        Select Case temp.Name
+                                            Case "tipo_art"
+                                                info_linea_art.tipo_art = temp.Value
+                                                info_linea_vinc.tipo_art = temp.Value
+                                            Case "cod_linea"
+                                                info_linea_art.cod_linea = temp.Value
+                                                info_linea_vinc.cod_linea = temp.Value
+                                            Case "cod_sett"
+                                                info_linea_art.cod_sett = temp.Value
+                                                info_linea_vinc.cod_sett = temp.Value
+                                            Case "cod_fam"
+                                                info_linea_art.cod_fam = temp.Value
+                                                info_linea_vinc.cod_fam = temp.Value
+                                            Case "cod_sott"
+                                                info_linea_art.cod_sott = temp.Value
+                                                info_linea_vinc.cod_sott = temp.Value
+                                            Case "cod_art"
+                                                info_linea_art.cod_art = temp.Value
+                                                info_linea_vinc.cod_art = temp.Value
+                                            Case "pz_ora"
+                                                info_linea_art.pz_ora = temp.Value
+
+                                            Case "min_lav"
+                                                info_linea_vinc.sec_lav = Convert.ToUInt32(temp.Value) * 60
+
+                                            Case "ragg_prod_linea"
+                                                info_linea_art.ragg_prod_linea = temp.Value
+                                                info_linea_vinc.ragg_prod_linea = temp.Value
+                                            Case "cod_dep_linea"
+                                                info_linea_art.cod_dep_linea = temp.Value
+                                                info_linea_vinc.cod_dep_linea = temp.Value
+                                            Case "tipo_art_prod"
+                                                If temp.Value = "XS" Then
+                                                    articolo = False
+                                                End If
+                                        End Select
+                                    Next
+                                    If Field_Null(info_linea_art.tipo_art) Then
+                                        DB_LookUp("tipo_art_prod", "anaart", "cod_art = '" & info_linea_art.cod_art & "'", info_linea_art.tipo_art)
+                                        DB_LookUp("tipo_art_prod", "anaart", "cod_art = '" & info_linea_vinc.cod_art & "'", info_linea_vinc.tipo_art)
+                                    End If
+                                    If articolo Then
+                                        linea.info_art.Add(info_linea_art)
+                                    Else
+                                        linea.info_vinc.Add(info_linea_vinc)
+                                    End If
+                                Next
+
+                            Case "vincoli_linea"
+                                json_array_vincoli = nodo.Value
+
+                                For Each vincolo As JObject In json_array_vincoli.Children(Of JObject)()
+
+                                    Dim vincolo_linea As Vincolo = New Vincolo
+
+                                    For Each temp As JProperty In vincolo.Properties
+
+                                        Select Case temp.Name
+
+                                            Case "tipo_art"
+                                                vincolo_linea.tipo_art = temp.Value
+
+                                            Case "cod_linea"
+                                                vincolo_linea.cod_linea = temp.Value
+
+                                            Case "cod_sett"
+                                                vincolo_linea.cod_sett = temp.Value
+
+                                            Case "cod_fam"
+                                                vincolo_linea.cod_fam = temp.Value
+
+                                            Case "cod_sott"
+                                                vincolo_linea.cod_sott = temp.Value
+
+                                            Case "cod_art"
+                                                vincolo_linea.cod_art = temp.Value
+
+                                            Case "tipo_vinc"
+                                                vincolo_linea.tipo_vinc = temp.Value
+
+                                            Case "des_vinc"
+                                                vincolo_linea.des_vinc = temp.Value
+
+                                            Case "data"
+                                                If Not Field_Null(temp.Value) Then
+                                                    vincolo_linea.data = Date.Parse(temp.Value)
+                                                Else
+                                                    vincolo_linea.data = Nothing
+                                                End If
+
+                                            Case "ora_inizio"
+                                                vincolo_linea.ora_inizio = temp.Value
+
+                                            Case "ora_fine"
+                                                vincolo_linea.ora_fine = temp.Value
+
+                                            Case "vinc_obb"
+                                                If temp.Value = "S" Then
+                                                    vincolo_linea.vinc_obb = True
+                                                Else
+                                                    vincolo_linea.vinc_obb = False
+                                                End If
+                                        End Select
+                                    Next
+                                    linea.vincoli_linea.Add(vincolo_linea)
+                                Next
+                            Case "sequenze_linea"
+                                json_array_sequenze = nodo.Value
+
+                                For Each seq As JObject In json_array_sequenze.Children(Of JObject)()
+
+                                    Dim sequenza As Sequenza = New Sequenza
+
+                                    For Each temp As JProperty In seq.Properties
+
+                                        Select Case temp.Name
+                                            Case "cod_seq"
+                                                sequenza.cod_seq = temp.Value
+
+                                            Case "des_seq"
+                                                sequenza.des_seq = temp.Value
+
+                                            Case "priorita"
+                                                'sequenza.priorita = temp.Value
+
+                                            Case "art_seq"
+                                                json_array_art = temp.Value
+
+                                                For Each art As JObject In json_array_art.Children(Of JObject)()
+
+                                                    Dim articolo As Articolo = New Articolo
+
+                                                    For Each point As JProperty In art.Properties
+
+                                                        Select Case point.Name
+
+                                                            Case "vincolo"
+                                                                If point.Value = "S" Then
+                                                                    articolo.vincolo = True
+                                                                Else
+                                                                    articolo.vincolo = False
+                                                                End If
+
+                                                            Case "tipo_art"
+                                                                articolo.tipo_art = point.Value
+
+                                                            Case "cod_linea"
+                                                                articolo.cod_linea = point.Value
+
+                                                            Case "cod_sett"
+                                                                articolo.cod_sett = point.Value
+
+                                                            Case "cod_fam"
+                                                                articolo.cod_fam = point.Value
+
+                                                            Case "cod_sott"
+                                                                articolo.cod_sott = point.Value
+
+                                                            Case "cod_art"
+                                                                articolo.cod_art = point.Value
+
+                                                            Case "des_art"
+                                                                articolo.des_art = point.Value
+
+                                                            Case "cod_tipo"
+                                                                articolo.cod_tipo = point.Value
+
+                                                            Case "v_per_articolo"
+                                                                If point.Value = "S" Then
+                                                                    articolo.v_per_articolo = True
+                                                                Else
+                                                                    articolo.v_per_articolo = False
+                                                                End If
+
+                                                            Case "cod_seqprod_cond"
+                                                                articolo.cod_seqprod_cond = point.Value
+
+                                                            Case "seq_ordine"
+                                                                articolo.seq_ordine = point.Value
+
+                                                        End Select
+                                                    Next
+                                                    sequenza.articoli.Add(articolo)
+                                                Next
+                                        End Select
+                                    Next
+                                    linea.sequenze_linea.Add(sequenza)
+                                Next
+                        End Select
+                    Next
+
+                    Linee_Produzione.Add(linea)
+
+                Next
+            End If
+            ' Leggo la sezione giorni che contiene il calendario lavorativo
+            json_array = jobj.SelectToken("giorni_produzione")
+            If Not json_array Is Nothing Then
+
+                For Each gio As JObject In json_array.Children(Of JObject)()
+
+                    Dim giorno As Giorno = New Giorno
+
+                    For Each nodo As JProperty In gio.Properties
+
+                        Select Case nodo.Name
+                            Case "giorno"
+                                giorno.giorno = Date.Parse(nodo.Value.ToString)
+
+                            Case "orari"
+                                json_array_orari = nodo.Value
+                                For Each ora As JObject In json_array_orari.Children(Of JObject)()
+                                    Dim orario As Orari = Nothing
+                                    Dim ora_inizio As String = ""
+                                    Dim ora_fine As String = ""
+                                    For Each temp In ora.Properties
+                                        Select Case temp.Name
+                                            Case "ora_inizio"
+                                                ora_inizio = temp.Value
+                                            Case "ora_fine"
+                                                ora_fine = temp.Value
+                                        End Select
+                                    Next
+                                    orario = New Orari(ora_inizio, ora_fine)
+                                    giorno.orari.Add(orario)
+                                Next
+                        End Select
+                    Next
+                    giorno.orari.OrderBy(Function(x) x.ora_inizio_sec)
+                    Calendario.Add(giorno)
+                Next
+            End If
+
+        End Using
+    End Function
+
+End Module
