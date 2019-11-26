@@ -3,30 +3,292 @@
 % !TEX root = ../tesi.tex
 
 %**************************************************************
-\chapter{Descrizione dello stage}
-\label{cap:descrizione-stage}
+\chapter{Progetto di stage}
+\label{cap:progetto-stage}
 %**************************************************************
 
-\intro{Breve introduzione al capitolo}\\
+\section{Analisi dei requisiti}
 
-%**************************************************************
-\section{Introduzione al progetto}
+Prima di iniziare a lavorare sul progetto, il tutor aziendale, mi ha fornito la documentazione esistente dell'applicativo, in particolar modo ho fatto riferimeto al manule
+utente creato in precedenza e all'analisi dei requisiti. Mi è stato espressamente chiesto inoltre di non eseguire alcuna modifica a livello grafico dell'applicativo in quanto 
+la clientela era abituata alla versione corrente e non sempre è immediato addattarsi a cambiamenti di questo tipo.
+Ho infine aggiunto due casi particolari che verranno evidenziati di seguito per quanto riguarda l'analisi dei requisiti esistente.
 
-%**************************************************************
-\section{Analisi preventiva dei rischi}
+%************************************************************
 
-Durante la fase di analisi iniziale sono stati individuati alcuni possibili rischi a cui si potrà andare incontro.
-Si è quindi proceduto a elaborare delle possibili soluzioni per far fronte a tali rischi.\\
+\subsection{Casi d'uso}
 
-\begin{risk}{Performance del simulatore hardware}
-    \riskdescription{le performance del simulatore hardware e la comunicazione con questo potrebbero risultare lenti o non abbastanza buoni da causare il fallimento dei test}
-    \risksolution{coinvolgimento del responsabile a capo del progetto relativo il simulatore hardware}
-    \label{risk:hardware-simulator} 
-\end{risk}
+Per rappresentare l'insieme delle azioni comuni ad un singolo utente sono stati utilizzati i casi d'uso.
+Per descrivere i vari scenari ho mantenuto la precedente scaletta di informazioni così da dare una continuità al documento esistente. 
+Ciascun caso d'uso sarà quindi rappresentato come descritto di seguito:
+\begin{itemize}
+    \item \textbf{Identificatore} univo nel formato UC-[Codice];
+    \item \textbf{Titolo} del caso d'uso;
+    \item \textbf{Descrizione} generale del caso d'uso;
+    \item \textbf{Attori} coinvolti: primari e secondari;
+    \item \textbf{Precondizione} del caso d'uso;
+    \item \textbf{Scenario principale} che il caso d'uso vuole modellare, identificando ogni azione che ne fa parte;
+    \item \textbf{Postcondizione} del caso d'uso;
+    \item \textbf{Estenzioni} dello scenario principale, evidenziata da una lettera maiuscola e inserita in un elenco.
+\end{itemize}
 
-%**************************************************************
-\section{Requisiti e obiettivi}
+Di seguito vengono rappresentate le modifiche apportate al documento esistente.
+Si fa riferimento allo standard UML 2.0 per la rappresentazione dei casi d'uso.
+
+\subsection*{UC-3 Pianificazione della produzione}
+
+\begin{figure}[H]
+	\includegraphics[width=9cm]{immagini/UC1.png}
+	\centering
+	\caption{Use Case - UC-3}
+\end{figure}
+
+\textbf{Attori}: Cliente. \newline
+\textbf{Descrizione}: Il cliente esegue la pianificazione degli ordini selezionati.\newline
+\textbf{Precondizione}: Il cliente ha selezionato gli ordini che intende pianificare e i giorni in cui vuole farlo.\newline
+\textbf{Scenario principale}: \begin{itemize}
+    \item Il cliente seleziona che ordini vuole pianificare;
+    \item Il cliente preme il pulsante "Pianifica";
+    \item Il cliente modifica i parametri della pianificazione come previsto dagli UC-3.1, UC-3.2, UC-3.3;
+    \item Il cliente preme il pulsante "Avvia pianificazione".
+\end{itemize}
+
+\textbf{Postcondizione}: Nella finestra principale viene visualizzato il risultato della pianificazione.
 
 
-%**************************************************************
-\section{Pianificazione}
+\subsection*{UC-3.3 Scelta dei parametri di pianificazione}
+
+\begin{figure}[H]
+	\includegraphics[width=9cm]{immagini/UC2.png}
+	\centering
+	\caption{Use Case - UC-3.3}
+\end{figure}
+
+\textbf{Attori}: Cliente. \newline
+\textbf{Descrizione}: Il cliente seglie i parametri da considerare nella pianificazione.\newline
+\textbf{Precondizione}: Il cliente ha selezionato il pulsante "Metodo di pianificazione".\newline
+\textbf{Scenario principale}: \begin{itemize}
+    \item Il cliente seleziona come effettuare le pianificazione;
+    \item Il cliente può selezionare le varie aggiunte descritte dagli UC-3.3.1, UC-3.3.2, UC3.3.3;
+    \item Il cliente preme il pulsante "Conferma".
+\end{itemize}
+\textbf{Postcondizione}: Si verrà ricondotti allo use case UC-3.3.
+
+\section{Tracciamento dei requisiti}
+
+Ogni requisito è composto dalla seguente struttura:
+\begin{itemize}
+	\item \textbf{codice identificativo}: ogni codice identificativo è univoco e conforme alla seguente codifica:\\
+	\centerline{\textbf{R[Importanza][Tipologia][Codice]}} \\ \\
+	Il significato delle cui voci è:
+	\begin{itemize}
+		\item \textbf{Tipologia}: ogni requisito può assumere uno dei seguenti valori:
+		\begin{itemize}
+			\item \textit{F}: funzionale;
+			\item \textit{P}: prestazionale;
+			\item \textit{Q}: qualitativo;
+			\item \textit{V}: vincolo.
+		\end{itemize}
+		\item \textbf{Importanza}: ogni requisito può assumere uno dei seguenti valori:
+		\begin{itemize}
+			\item \textit{O}: requisito obbligatorio: irrinunciabili per qualcuno degli stakeholder;
+			\item \textit{D}: requisito desiderabile: non strettamente necessari ma  a valore aggiunto riconoscibile;
+			\item \textit{F}: requisito facoltativo: relativamente utili oppure contrattabili più avanti nel progetto.	
+		\end{itemize}
+		\item \textbf{Codice}: è un identificatore univoco del requisito segue un ordine incrementale.
+	\end{itemize}
+	\item \textbf{classificazione}: viene riportata l'importanza del requisito. Sebbene questa sia un'informazione ridondante ne facilita la lettura;
+	\item \textbf{descrizione}: descrizione breve ma completa del requisito, meno ambigua possibile.
+\end{itemize}
+\renewcommand{\arraystretch}{1.5}
+
+
+
+\subsection{Requisiti funzionali}
+
+\rowcolors{2}{pari}{dispari}
+
+\begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
+		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
+	\caption{Tabella dei requisiti funzionali}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	 
+	\endfirsthead
+	\rowcolor{white}\caption[]{(continua)}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	
+	\endhead	
+	
+	RFO1	&	Obbligatorio	&	Il sistema permette l’inserimento di un nuovovincolo di linea	 \tabularnewline
+	RFO2	&	Obbligatorio	&	Il sistema permette la modifica dei dati di unvincolo di linea esistente	\tabularnewline
+	RFO3	&	Obbligatorio	&	Il sistema permette l’eliminazione di un vincolo dilinea 	\tabularnewline
+	RFO4	&	Obbligatorio	&	L’interfaccia permette l’eliminazione di una linea 	\tabularnewline
+	RFO5	&	Obbligatorio	&	 Il sistema permette l’aggiunta di una nuovasequenza	\tabularnewline
+	RFO6	&	Obbligatorio	&	 Il sistema permette la modifica dei dati di unasequenza esistente	\tabularnewline
+	RFO7	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un articolo disequenza esistente	\tabularnewline
+	RFO8	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un vincolo disequenza esistente	\tabularnewline
+	RFO9	&	Obbligatorio	&	 Il sistema permette l’eliminazione di una sequenza	\tabularnewline
+	RFO10	&	Obbligatorio	&	 Il sistema permette all’utente di scegliere un tempomassimo di esecuzione dell’algoritmo	\tabularnewline
+	RFO11	&	Obbligatorio	&	 Il sistema permette all’utente di assegnare un pesoall’importanza di parametri di produzione quali:pezzi prodotti e occupazione delle linee	\tabularnewline
+	RFD1	&	Desiderabile	&	 Il sistema permette all’utente di scegliere sericalcolare la pianificazione già esistente	\tabularnewline
+	RFO12	&	Obbligatorio	&	 Il sistema permette di pianificare automaticamen-te la produzione dato un insieme di ordini e unintervallo di tempo	\tabularnewline
+	RFO1	&	Obbligatorio	&	 Il sistema permette di sceglire i relativi criteri di pianificazione	\tabularnewline
+\end{longtable}
+
+\subsection{Requisiti qualitativi}
+
+\rowcolors{2}{pari}{dispari}
+
+\begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
+		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
+	\caption{Tabella dei requisiti qualitativi}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	 
+	\endfirsthead
+	\rowcolor{white}\caption[]{(continua)}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	
+	\endhead	
+	
+	RQD1	&	Desiderabile	&	Il programma genera un file di Log\glosp di supporto al Debug\glo	 \tabularnewline
+	RQO1	&	Obbligatorio	&	Ogni scelta non banale effettuata è adeguatamentecommentata nel codice	\tabularnewline
+	RQF1	&	Facoltativo		&	Fornire un manuale utente	\tabularnewline
+	RQF2	&	Facoltativo		&	Fornire un manuale sviluppatore	\tabularnewline
+
+\end{longtable}
+
+\subsection{Requisiti prestazionali}
+
+\rowcolors{2}{pari}{dispari}
+
+\begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
+		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
+	\caption{Tabella dei requisiti prestazionali}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	 
+	\endfirsthead
+	\rowcolor{white}\caption[]{(continua)}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	
+	\endhead	
+	
+	RPD1	&	Desiderabile	&	L'applicativo deve fornire una soluzione entro il tempo stabilito dall'utente	 \tabularnewline
+	RPD2	&	Desiderabile	&	L'applicativo deve fornire la soluzione nel modo più rapido possibile senza valutare ulteriori combinazioni se è stato
+	raggiunto un determinato punteggio stabilito per la soluzione stessa \tabularnewline
+	RPD3	&	Desiderabile	&	La fase di lettura dei dati deve essere eseguita in tempi inferiori ai 30 minuti \tabularnewline
+
+\end{longtable}
+
+\subsection{Requisiti vincolo}
+
+\rowcolors{2}{pari}{dispari}
+
+\begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
+		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
+	\caption{Tabella dei requisiti prestazionali}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	 
+	\endfirsthead
+	\rowcolor{white}\caption[]{(continua)}\\
+	\rowcolorhead 
+	\textbf{\color{white}Requisito} 
+	& \textbf{\color{white}Classificazione} 
+	& \centering\textbf{\color{white}Descrizione}
+	
+	\endhead	
+	
+	RVO1	&	Desiderabile	&    Rendere compatibile il programma con l’attualemodulo di pianificazione della produzione	 \tabularnewline
+	RVO2	&	Desiderabile	&    Ottimizzare la pianificazione tenendo conto delle materie prime e dei semilavorati	 \tabularnewline
+	RVO3	&	Desiderabile	&    Ottimizzare la pianificazione tenendo conto degli ordini dei fornitori inseriti a sistema	 \tabularnewline
+	RVO4	&	Desiderabile	&    Ottimizzare la pianificazione rendendo possibile la pianificazione dei semilavorati	 \tabularnewline
+	RVO5	&	Desiderabile	&    Il programma è sviluppato tramite il linguaggio diprogrammazione Vb.NET v.4.7.0	 \tabularnewline
+	RVO6	&	Desiderabile	&    L’IDE\glosp utilizzato è Microsoft Visual Studio\glosp v.10.0.4	 \tabularnewline
+	RVO7	&	Desiderabile	&    Le componenti grafiche sono basate sulle DevEx-press\glo	 \tabularnewline
+	RVO8	&	Desiderabile	&    I dati vengono salvati su un database Informix	 \tabularnewline
+	RVO9	&	Desiderabile	&    I dati in input sono scritti su un file JSON	 \tabularnewline
+	RVO10	&	Desiderabile	&    I dati in output sono scritti su un file JSON	 \tabularnewline
+
+\end{longtable}
+
+
+\subsection{Riepilogo dei requisiti}
+
+\rowcolors{2}{pari}{dispari}
+
+\begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
+		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
+	\caption{Tabella del riepilogo dei requisiti}\\
+	\rowcolorhead 
+	\textbf{\color{white}Tipo} 
+	& \textbf{\color{white}Obbligatori} 
+	& \centering\textbf{\color{white}Desiderabili}
+	& \centering\textbf{\color{white}Facoltativi}
+	
+	\endhead	
+	
+	Funzionali	&	13	&  1  &	0 \tabularnewline
+	Qualitativi	&	1	&  1  &	 2 \tabularnewline
+	Prestazionali	&	0	&   3 & 0	 \tabularnewline
+	Di vincolo	&	10	& 0   &	0 \tabularnewline
+	Totali	&	24	&   5 &	2 \tabularnewline
+\tabularnewline \tabularnewline
+\end{longtable}
+
+\section{Tecnologie e strumenti}
+
+Di seguito sono riportate tutte le tecnologie utilizzate durante lo sviluppo del progetto.
+Tali scelte sono state imposte da Ergon Informatica in quanto sono gli strumenti che vengono utilizzati dall'azienda per lo sviluppo dei progetti interni.
+La scelta è inoltre guidata dal fatto che, per mantenere l'integrazione con le parti già esistenti dell'applicativo e il suo funzionamento tramite il software Ergdis, 
+non si è potuto spostarsi su nuove tecnologie, magari anche solo a qualche versione successiva di esse.
+Ergon Informatica si appoggia a questi strumenti in quanto sono forniti di un ottima documentazione di supporto, hanno un alto tasso di scalabilità 
+e forniscono un supporto in tempo reale alla codifica.\\ \\
+
+\textbf{Vb.NET}
+
+\begin{figure}[H]
+	\includegraphics[width=5cm]{immagini/vb.png}
+	\centering
+	\caption{Use Case - UC-3}
+\end{figure}
+
+Linguaggio di programmazione che deriva da Visual Basic 6, è sviluppato da Microsoft e, al contrario dei precedenti, supporta il paradigma di programmazione orientata agli oggetti.
+Vb.NET consente lo sviluppo di applicazioni Windows, Web e per dispositivi mobili. 
+Come avviene con tutti i linguaggi basati su Microsoft .NET Framework,
+i programmi scritti in Vb.NET usufruiscono delle funzionalità di sicurezza e interoperabilità dei linguaggi.
+Viene utilizzato questo linguaggio per poter usufruire delle classi, le quali riducono significativamente le duplicazioni di codice e rendono l'intero sorgente 
+chiuso alle modifiche e aperto agli ampliamenti.
+
+\textbf{Visual Studio 2010}
+
+\begin{figure}[H]
+	\includegraphics[width=9cm]{immagini/microsoft-visual-studio-2010-logo.png}
+	\centering
+	\caption{Use Case - UC-3}
+\end{figure}
+
+Ambiente di sviluppo integrato sviluppato da Microsoft. 
+La prima versione risale al 1997 e aveva lo scopo di fornire
+un ambiente di sviluppo grafico ed  ed integrato che aiutasse lo sviluppatore a gestire i progetti in maniera semplice, ma efficace, aumentandone quindi la produttività.
+Microsoft ha incluso il supporto a differenti linguaggi di programmazione.
+In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni desktop che mobile.

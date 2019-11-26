@@ -6,6 +6,7 @@
 % Frontespizio
 %**************************************************************
 
+
 % Autore
 \newcommand{\myName}{Riccardo Basso}                                    
 \newcommand{\myTitle}{Sviluppo di algoritmi euristici di ottimizzazione e applicazione alla pianificazione della produzione}
@@ -87,7 +88,8 @@
 %**************************************************************
 \input{glossario} % database di termini
 \makeglossaries
-
+\newcommand{\glo}{$_{G}$}
+\newcommand{\glosp}{$_{G}$ }
 
 %**************************************************************
 % Impostazioni di graphicx
@@ -103,7 +105,7 @@
     %pdfpagelabels,
     %draft,	% = elimina tutti i link (utile per stampe in bianco e nero)
     colorlinks=false,
-    linktoc=true,
+    linktoc=all,
     pdfstartpage=1,
     pdfstartview=FitV,
     % decommenta la riga seguente per avere link in nero (per esempio per la stampa in bianco e nero)
@@ -134,17 +136,6 @@
 }
 
 %**************************************************************
-% Impostazioni di itemize
-%**************************************************************
-\renewcommand{\labelitemi}{$\ast$}
-
-%\renewcommand{\labelitemi}{$\bullet$}
-%\renewcommand{\labelitemii}{$\cdot$}
-%\renewcommand{\labelitemiii}{$\diamond$}
-%\renewcommand{\labelitemiv}{$\ast$}
-
-
-%**************************************************************
 % Impostazioni di listings
 %**************************************************************
 \lstset{
@@ -168,8 +159,8 @@
 %**************************************************************
 % Impostazioni di xcolor
 %**************************************************************
-\definecolor{webgreen}{rgb}{0,.5,0}
-\definecolor{webbrown}{rgb}{.6,0,0}
+%\definecolor{webgreen}{rgb}{0,.5,0}
+%\definecolor{webbrown}{rgb}{.6,0,0}
 
 
 %**************************************************************
@@ -245,6 +236,32 @@
 \newcommand{\usecasedesc}[1]{\textbf{\\Descrizione:} #1. \vspace{4pt}}
 \newcommand{\usecasepost}[1]{\textbf{\\Postcondizioni:} #1. \vspace{4pt}}
 \newcommand{\usecasealt}[1]{\textbf{\\Scenario Alternativo:} #1. \vspace{4pt}}
+
+%***************************************************
+%Comandi tabelle
+%***************************************************
+% multirow per tabelle
+\usepackage{multirow}
+
+% Permette tabelle su più pagine
+
+%\usepackage{longtable}
+
+
+% colore di sfondo per le celle
+%\usepackage{xcolor}
+
+%COMANDI TABELLE
+\newcommand{\rowcolorhead}{\rowcolor[HTML]{56A5EC}} %intestazione 
+\newcommand{\rowcolorlight}{\rowcolor[HTML]{FAFAFA}} %righe chiare/dispari
+\newcommand{\rowcolordark}{\rowcolor[HTML]{E1F5FE}} %righe scure/pari
+\newcommand{\colorhead}{\color[HTML]{FFFFFF}} %testo intestazione
+\newcommand{\colorbody}{\color[HTML]{000000}} %testo righe
+\newcommand{\tabitem}{~~\rlap{\textbullet}~~}
+
+\definecolor{pari}{HTML}{E1F5FE}
+\definecolor{dispari}{HTML}{FAFAFA}
+
 
 %**************************************************************
 % Environment per ``namespace description''
