@@ -11,9 +11,9 @@
 \subsection{Architettura}
 
 Prima di descrivere la varie aggiunte che sono state apportate al software è necessario fornire un'idea dell'architettura sulla quale il progetto si basa.In questo modo si 
-rendono più chiare molte delle scelte che sono state prese e il perchè altre sono state scartate. Di seguito è presentato uno schema ad alto livello di come sono strutturate le
-varie componenti che formano l'intero sistema. Come possiamo notare dalla figura sottostante, il progetto segue un flusso pressochè "ciclico", partendo dal recupero dei dati dal
-database e infine fornendo la soluzione. I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione,
+rendono più chiare molte delle scelte che sono state prese e il perchè altre sono state scartate.\\ Di seguito è presentato uno schema ad alto livello di come sono strutturate le
+varie componenti che formano l'intero sistema. Come possiamo notare dalla figura sottostante, il progetto segue un flusso pressoché "ciclico", partendo dal recupero dei dati dal
+database e infine fornendo la soluzione.\\ I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione,
 una volta fornita la soluzione essa viene ritradotta in un file JSON il quale viene letto e trasposto nell'interfaccia utente.
 
 \begin{figure}[H]
@@ -27,7 +27,7 @@ una volta fornita la soluzione essa viene ritradotta in un file JSON il quale vi
 \textbf{Il problema}
 
 Dovendo integrare delle nuove funzionalità al programma esistente, si è prima effettuata un analisi del problema esistente per quanto riguarda la pianificazione della produzione,
-in modo da poter comprendere alcune delle scelte euristiche\glosp che sono state effettuate in seguito.
+in modo da poter comprendere alcune delle scelte euristiche\glosp che sono state effettuate in seguito.\\
 Il suddetto problema rientra nella categoria NP-hard\glosp in quanto è riconducibile al problema del commesso viaggiatore\glo. A tali problemi non è possibile far corrispondere
 una soluzione ottima ma, al massimo, la miglior approssimazione possibile di una soluzione ammissibile. In aggiunta al problema del commesso viaggiatore si devono considerare
 altri vincoli come: 
@@ -44,7 +44,7 @@ In particolare vanno tenuti in considerazione i vincoli precedenti più l'aggiun
 \begin{itemize}
     \item pianificazione dei semilavorati antecedente ai prodotti finiti;
     \item materie prime e semilavorati presenti in quantità sufficienti per la produzione;
-    \item verfica della disponibilità di materie prime e semilavorati in base agli ordini fornitori.
+    \item verifica della disponibilità di materie prime e semilavorati in base agli ordini fornitori.
 \end{itemize}
 
 In conclusione, il problema che il progetto si pone di risolvere, consiste nel trovare una soluzione ammissibile, quanto più vicina all'ottimo,
@@ -54,22 +54,22 @@ in base ai vincoli imposti.\newline
 \textbf{La soluzione}
 
 Dovendo appoggiarsi all'algoritmo esistente, non è stato possibile eseguire uno stravolgimento completo del suo funzionamento, anzi si è cercato di inserire le nuove funzionalità
-in modo da integrarle il più possibile senza effettuare modifiche sostanziali alla struttura del codice esistente. Per fare ciò si è fatto ampio uso di nuove funzioni e classi, per poter
-delegare, dalla base esistente, l'esecuzione di nuovi moduli di pianificazione. La struttura di partenza sulla quale vengono integrati i nuovi moduli è composta da un iniziale
+in modo da integrarle il più possibile senza effettuare modifiche sostanziali alla struttura del codice esistente.\\ Per fare ciò si è fatto ampio uso di nuove funzioni e classi, per poter
+delegare, dalla base esistente, l'esecuzione di nuovi moduli di pianificazione.\\ La struttura di partenza sulla quale vengono integrati i nuovi moduli è composta da un iniziale
 fase di lettura dei dati dal database. Tali dati vengono convertiti in un file JSON che, per comodità di esecuzione, viene letto nuovamente dallo stesso programma, anche se
-l'dea di base sarebbe quella di delegare la sua lettura e successiva elaborazione dei dati ad un sistema centralizzato esterno all'azienda che fornisce i dati stessi.
+l'dea di base sarebbe quella di delegare la sua lettura e successiva elaborazione dei dati ad un sistema centralizzato esterno all'azienda che fornisce i dati stessi.\\
 Una volta ottenuti i dati in formato JSON, vengono inseriti nell'algoritmo tramite l'impiego di classi e strutture predisposte. Tali classi vengono utilizzate come parametri
-per la prima funzione che si pone come obiettivo quello di fornire una soluzione ammissibile nel minor tempo possibile ovvero l'Algoritmo Greedy\glo. Tale algoritmo ha il compito
+per la prima funzione che si pone come obiettivo quello di fornire una soluzione ammissibile nel minor tempo possibile ovvero l'Algoritmo Greedy\glo.\\ Tale algoritmo ha il compito
 di valutare, in modo sequenziale, i vari ordini che necessitano di essere pianificati, se un ordine soddisfa i vincoli imposti allora verrà inserito nella soluzione iniziale.
 Una volta ottenuta la soluzione iniziale, questa viene fornita alla successiva funzione di ottimizzazione, composta da un algoritmo di Tabu Search\glo. Tale algoritmo ha il compito
 di eseguire un insieme di mosse specifiche in modo casuale, valutando di volta in volta la bontà della soluzione ottenuta dopo la sua esecuzione. Al termine di un numero prefissato
-di iterazioni, o dopo aver soddisfatto i criteri di aspirazione, verrà fornita la soluzione ottimizzata da visualizzare.
+di iterazioni, o dopo aver soddisfatto i criteri di aspirazione, verrà fornita la soluzione ottimizzata da visualizzare.\\
 Visto che le scelte implementative non sempre possono essere chiare o si potrebbe pensare di utilizzare una metodologia diversa, viene illustrato di seguito il funzionamento
 degli algoritmi su cui fa affidamento la pianificazione della produzione.\\
 
 \textbf{Algoritmo Greedy}
 
-È il primo passo per ottenere una soluzione ammissibile del problema in questione. Tale algoritmo si sviluppa tenendo conto che non è possibile effettuare dei "passi indietro",
+È il primo passo per ottenere una soluzione ammissibile del problema in questione. Tale algoritmo è sviluppato tenendo in considerazione che non è possibile effettuare dei "passi indietro",
 ovvero, una volta inserito un ordine in pianificazione tale ordine rimane fino alla fine dell'esecuzione. I parametri in ingresso di tale algoritmo sono i seguenti:
 \begin{itemize}
     \item ordini da pianificare;
@@ -101,7 +101,334 @@ L'ordine di funzionamento è quindi il seguente:
     \item si ripetono le azioni sopracitate fino al termine della valutazione di tutti gli ordini da pianificare.
 \end{itemize}
 
-Si ricorda che non è necessario che tutti gli ordini richiesti siano pianificati in quanto uno dei precedenti vincoli può non essere soddisfatto e, se tale ordine venisse
+Si ricorda che non è necessario che tutti gli ordini richiesti siano pianificati, in quanto uno dei precedenti vincoli può non essere soddisfatto e, se tale ordine venisse
 inserito nella soluzione, quest'ultima sarebbe non ammissibile perché viola appunto almeno uno dei vincoli imposti. Inoltre, se si esegue un accurato controllo, si può notare che 
 il risultato fornito al termine della sua esecuzione, in alcuni casi, ha un ampio margine di miglioramento. L'algoritmo Greedy ha come obiettivo quello di creare una
-soluzione iniziale nel modo più rapido possibile, in modo da avere una base di partenza per la successiva ottimizzazione eseguita dall'algoritmo Tabu Search.
+soluzione iniziale nel modo più rapido possibile, in modo da ottenere una base di partenza per la successiva ottimizzazione eseguita dall'algoritmo Tabu Search.\\
+
+
+\textbf{Tabu Search}
+
+Una volta ottenuta la prima soluzione ammissibile, fornita dall'algoritmo Greedy, l'esecuzione si sposta sulla sua ottimizzazione tramite la Tabu Search.
+Questa particolare tecnica meta-euristica\glosp ha lo scopo di fornire una soluzione migliore, più vicina all'ottimo, tramite l'esecuzione di un insieme di mosse ben
+definite in modo casuale. L'esecuzione di queste mosse in modo casuale porta ogni volta ad una nuova soluzione ammissibile, tale risultato viene poi confrontato con la soluzione
+precedente, se il risultato è migliorativo allora verrà considerato come nuova miglior soluzione e si utilizzerà per la successiva ottimizzazione, altrimenti tale risultato 
+verrà semplicemente scartato e si prosegue con l'esecuzione della mossa successiva. Di seguito è presentato l'ordine di funzionamento di tale algoritmo:
+\begin{itemize}
+    \item selezione casuale della mossa da eseguire tra le seguenti:
+    \begin{itemize}
+        \item mossa aggiungi articolo;
+        \item mossa sposta articolo;
+        \item mossa scambia articoli;
+        \item mossa elimina articolo;
+        \item mossa sposta sequenza; 
+        \item mossa scambia sequenza.  
+    \end{itemize}
+    \item validazione della mossa scelta;
+    \item esecuzione della mossa scelta;
+    \item valutazione della nuova soluzione in rapporto con la soluzione precedente;
+    \item viene ripetuta l'esecuzione nell'ordine sopracitato fino al termine del numero massimo di iterazioni, del tempo imposto o del soddisfacimento di uno dei criteri di
+    aspirazione.\\
+\end{itemize}
+
+
+\textit{Scelta della mossa}\\
+È utile entrare maggiormente nel dettaglio dei punti precedenti per avere un'idea di come si ottiene la soluzione ottimizzata.\\
+Al punto uno, la scelta della mossa, viene eseguita inizialmente in modo casuale, sottolineo inizialmente in quanto, uno degli obiettivi che mi sono stati richiesti, riguardava
+l'impiego di alcuni metodi di diversificazione\glosp o intensificazione\glo. Tali metodi si applicano ad algoritmi di questo tipo per "forzare" la successiva mossa da scegliere,
+quindi non rendendola più completamente casuale. Nel caso dell'intensificazione si punta a scegliere l'insieme di mosse che, ad esempio, nelle loro esecuzioni precedenti hanno fornito
+risultati migliori e quindi si pensa potranno fornire migliori risultati anche in futuro, in questo modo ci si concentra maggiormente su queste scartando le altre.
+Al contrario, la diversificazione, può decidere di eseguire le mosse che sono state meno eseguite in precedenza così da indirizzare i risultati verso strade mai 
+percorse.\\ È proprio quest'ultimo caso che, a seguito di una discussione con il tutor aziendale, ho inserito nel programma esistente. Il suo funzionamento è semplice ma non banale:
+dopo l'esecuzione di metà delle iterazioni concesse alla Tabu Search entra in gioco tale meccanismo, ho deciso di considerare l'esatta metà così da poter ottenere inizialmente una
+soluzione meno forzata possibile, da tale momento in poi verrà assegnato un peso percentuale ad ogni mossa che diminuirà ad ogni esecuzione della stessa, aumentando quindi il 
+peso delle rimanenti.\\ Per fare questo ho utilizzato un array di 100 elementi nel quale, inizialmente, ogni 16 posizioni contigue è presente una mossa specifica,rappresentata dal
+relativo numero, fino al suo totale riempimento. Di conseguenza ogni mossa avrà un peso percentuale di circa 16 e ora la scelta casuale non si effettua più scegliendo tra le
+6 mosse ma scegliendo casualmente un elemento dell'array che corrisponde ad una mossa.\\
+Nel caso in cui venga scelta la mossa \textit{elimina articolo} corrispondente al numero 6, tale numero verrà sostituito con un altro numero casuale appartenente alle altre mosse
+restanti. In questo modo il peso percentuale di \textit{elimina articolo} diminuirà mentre un altra mossa otterrà un relativo aumento. Si è scelto di utilizzare questo metodo
+per poter garantire comunque un alto grado di casualità, criterio su cui fa affidamento la tecnica di Tabu Search.\\
+
+\textit{Validazione della mossa scelta}\\
+Anche in questo caso è utile approfondire come avviene la validazione di una mossa scelta in modo casuale. In particolare, in alcuni casi, possiamo direttamente scartare
+l'esecuzione della mossa perché siamo sicuri che porterà ad una soluzione non migliorativa.\\ Ogni algoritmo di Tabu Search fa affidamento su una relativa Tabu List\glo, la quale
+non è altro che uno storico delle mosse eseguite in precedenza, le quali non dovranno essere rieseguite, almeno nell'immediato futuro.\\ Un criterio importante da tenere presente
+è la lunghezza che si sceglie di dare a tale lista, questo perché una lista troppo corta non garantisce che non vengano eseguite mosse utilizzate da poco tempo, mentre, una 
+lista troppo lunga tende a creare troppa diversificazione delle soluzioni.\\ Nel mio progetto alla Tabu List è stata assegnata una lunghezza di 500, considerando anche il fatto
+di salvare sia la mossa che ha portato ad una nuova soluzione, sia la sua mossa opposta, in modo da non tornare casualmente alla soluzione precedente. La validazione di una mossa,
+in seguito, deve inoltre sottostare a dei vincoli che appartengono alla realtà sulla quale si basa il nostro applicativo. Ad esempio se viene considerata la mossa \textit{aggiungi articolo}
+ma non abbiamo nessun articolo da aggiungere tale mossa viene scartata.\\ Con l'aggiunta della pianificazione dei semilavorati, i quali ricordiamo avere le stesse peculiarità
+dei prodotti finiti, sono stati aggiunti ulteriori controlli, in quanto non possiamo garantire l'eliminazione tramite la mossa \textit{elimina articolo} di uno di questi senza
+eliminare anche l'articolo a cui fanno riferimento.\\ Perciò si è scelto di eseguire l'eliminazione solo sui prodotti finiti. Altri controlli da eseguire riguardano lo spostamento
+di articoli o sequenze, nel caso venga selezionato lo spostamento di un semilavorato bisogna accertarsi che non venga inserito in pianificazione successivamente al relativo
+prodotto finito. Allo stesso modo è stato necessario aggiungere controlli sulla giacenza e sull'arrivo di merci dai fornitori, questo perché lo spostamento, l'eliminazione e l'aggiunta
+di articoli creava una forte oscillazione nei dati riguardanti i materiali da lavorazione e spesso riconduceva ad una soluzione peggiorativa.\\ Come si può intuire l'aggiunta
+di tutti questi vincoli ha minato la capacità di ottenere una soluzione nettamente migliorativa da parte della Tabu Search.\\
+
+\textit{Esecuzione della mossa scelta}\\
+Una volta accertati che la mossa sia eseguibile si passa alla sua implementazione.\\ Ogni mossa è correlata ad un insieme di funzioni che hanno il compito di accertarsi che ad
+ogni passo della sua esecuzione ci si trovi all'interno di una soluzione ammissibile. È facile riscontrare che, durante l'esecuzione di una di queste mosse, si possa terminare 
+in una soluzione non ammissibile, in questo caso viene scartato il nuovo risultato e si torna alla soluzione ammissibile precedente.\\ Nel caso in cui siano soddisfatti tutti
+i vincoli imposti al termine dell'esecuzione di una mossa la soluzione ottenuta sarà ammissibile e sarà compito del prossimo passo dell'algoritmo accertarne la bontà.\\
+
+\textit{Valutazione della soluzione}
+
+Una volta ottenuta un nuova soluzione è necessario valutarla per sapere se sia migliorativa o peggiorativa rispetto alla precedente.\\
+Il confronto quindi viene eseguito calcolando il punteggio della nuova soluzione il quale è dato dalla seguente funzione:
+%\[F(s) = \frac{Pz}{Pz\ped{tot}}*Peso\ped{pz} - \frac{T\ped{linee}}{T\ped{linee-tot}}*Peso\ped{pz}\]
+
+\[\frac{\text{Pezzi pianificati}}{\text{Totale pezzi richiesti}} * \text{Peso del rapporto pezzi}\]\\
+
+Qui otteniamo il punteggio di maggior spessore, dal quale si sottraggono i seguenti:
+
+\[\frac{\text{Occupazione linee}}{\text{Massima occupazione linee}} * \text{Peso del rapporto occupazione}\]\\
+
+\[\frac{\text{Tempo totale di pianificazione}}{\text{Massimo tempo a disposizione}} * \text{Peso del rapporto tempo}\]\\
+
+Una volta ottenuto il relativo punteggio viene eseguito il confronto con la soluzione precedente e si sceglie la soluzione avente il punteggio più alto.\\
+Questo non è l'unico metodo con il quale si sceglie la soluzione che riteniamo essere migliore.\\ Vengono impiegati dei criteri di aspirazione\glosp i quali hanno il compito
+di valutare anche soluzioni che hanno punteggi inferiori alla precedente ma che potrebbero essere un buon punto di partenza per la valutazione di soluzioni successive.\\
+Nel progetto è stato inserito un criterio di aspirazione con il seguente funzionamento: se la nuova soluzione ha un punteggio inferiore alla soluzione precedente, ma il 
+numero di pezzi prodotti è superiore, allora se la differenza è inferiore al 2\% la nuova soluzione è considerata migliore. Questo perché lo scopo ultimo della pianificazione
+è riuscire a pianificare il maggior numero di ordini possibili.
+
+
+\subsection{Codifica}
+
+In questa sezione vengono illustrati i vari passi che ho seguito durante la fase di codifica del progetto, specificando i punti fondamentali di ognuno.\\
+
+\title{Implementazione controllo giacenze}
+
+Il primo obiettivo che ho dovuto raggiungere riguardava l'esecuzione della pianificazione in base alle materie prime e semilavorati presenti in magazzino.
+Per fare ciò ho seguito i passi presentati di seguito:\\ \\
+\textbf{Controllo giacenze}
+\begin{enumerate}
+        \item lettura dal database dei dati riguardanti le giacenze;
+        \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base\glosp dei prodotti finiti; 
+        \item scrittura dei dati in un file JSON;
+        \item creazione di una classe volta a lavorare sulle giacenze;
+        \item creazione di una funzione volta al controllo della presenza di materiali per eseguire la pianificazione;
+        \item integrazione di tale funzione con gli algoritmi Greedy e Tabu Search;
+        \item rimozione dei materiali necessari a produrre un prodotto finito;
+        \item reintegrazione dei materiali in magazzino se uno o più articoli vengono eliminati dalla pianificazione.\\
+\end{enumerate}
+
+\textbf{Pianificazione semilavorati} 
+\begin{enumerate}
+        \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base\glosp dei prodotti finiti; 
+        \item scrittura dei dati in un file JSON;
+        \item riutilizzo della classe \textit{Ordine} per i semilavorati;
+        \item ampliamento delle funzionalità della classe \textit{Ordine} per tenere traccia dei semilavorati di ogni prodotto finito;
+        \item integrazione della pianificazione dei semilavorati nell'algoritmo Greedy, anticipando la loro produzione rispetto al prodotto finito;
+        \item inserimento di controlli ausiliari per impedire spostamenti ed eliminazioni durante l'esecuzione dell'algoritmo di Tabu Search.\\
+\end{enumerate}
+
+Di seguito è mostrato come si presenta la pianificazione restituita dall'applicativo dopo la pianificazione dei semilavorati.
+
+\begin{figure}[H]
+	\includegraphics[width=\textwidth]{immagini/sl_planning.png}
+	\centering
+\end{figure}
+\begin{figure}[H]
+	\includegraphics[width=\textwidth]{immagini/sl_planning2.png}
+    \centering
+    \caption{Pianificazione semilavorati}
+\end{figure}
+
+Dall'immagine precedente vediamo che \textit{F78} è un semilavorato,di cui abbiamo 100kg in giacenza, richiesto dai prodotti finiti \textit{I42} e \textit{I43}.
+Sappiamo che i due prodotti finiti in questione richiedono 300kg del semilavorato \textit{F78} ciascuno, e vediamo che il martedì ne sono pianificati esattamente 500kg
+per garantire la produzione di \textit{I42} e \textit{I43} il mercoledì.
+
+\newpage
+
+\textbf{Controllo ordini fornitori} 
+\begin{enumerate}
+        \item lettura dal database i dati riguardanti gli ordini fornitori; 
+        \item scrittura dei dati in un file JSON;
+        \item creazione di una classe volta a lavorare sugli ordini fornitori;
+        \item ampliamento della funzione dedita al controllo delle giacenze;
+        \item integrazione di tale funzione con gli algoritmi Greedy e Tabu Search;
+        \item inserimento di controlli ausiliari per evitare di ottenere soluzioni non ammissibili durante l'esecuzione di entrambi gli algoritmi.\\
+\end{enumerate}
+
+\textbf{Pianificazione ordini da magazzino} 
+\begin{enumerate}
+        \item lettura di ordini da inserire in pianificazione direttamente dal magazzino;
+        \item scrittura dei dati in un file JSON;
+        \item riutilizzo della classe \textit{Ordine} per gli ordini da magazzino;
+        \item utilizzo di tutti i vincoli precedenti per effettuare la pianificazione.\\
+\end{enumerate}
+
+\textbf{Criteri di Diversificazione/Intensificazione}\\ \\
+In questa fase ho studiato come ottenere il massimo dall'esecuzione dell'algoritmo Tabu Search.\\
+Si è infine scelto di utilizzare una tecnica di diversificazione come spiegato nella sezione precedente.
+
+\newpage
+
+\section{Verifica e validazione}
+
+La fase di verifica si è protratta durante tutta la fase di sviluppo del progetto. Ho scelto delle tecniche di analisi statica, in quanto non era previsto un piano di test
+da effettuare sui risultati ottenuti.\\ Il fatto di non eseguire dei test automatici sui risultati ottenuti deriva anche dal fatto che i dati utilizzati corrispondano
+a dei dati reali, per i quali sarebbe stato più complicato codificare un insieme di test automatici e avrebbe sottratto un considerevole ammontare di tempo allo sviluppo del
+codice applicativo. 
+
+\subsection{Analisi statica}
+
+Ho fatto ampio uso dello strumento di debug fornito da Visual Studio 2010 e ho creato una lista di controllo tramite breakpoint\glosp in modo da poter
+valutare, durante l'esecuzione, lo stato del software ad ogni punto critico. Ciò mi ha permesso di individuare efficacemente gli errori a livello logico che si sono presentati
+durante la varie fasi di sviluppo. Ho proseguito poi con un controllo effettivo sulla soluzione presentata a video dal programma, la quale veniva valutata a campione su determinati 
+ordini specifici, in modo da ottenere un riscontro reale della bontà della soluzione stessa. 
+
+\subsection{Analisi dinamica}
+
+Ho fatto uso di più funzioni con il compito di attestare che la soluzione corrente sia ammissibile, in particolare ogni funzione aveva il compito di verificare che
+determinati vincoli fossero rispettati. Ad esempio, dopo aver inserito il controllo sulle materie prime e semilavorati, verificavo che la rimozione di queste due componenti
+combaciasse con quanto risultava presente in magazzino. Ho effettuato altri controlli sul tempo di pianificazione rimanente e vincoli di linea imposti dalle relative
+aziende. Si sottolinea che queste funzioni vengono richiamate solo in punti ben definiti nel codice, in quanto non sarebbe utile richiamare la stessa funzione di controllo
+se i vincoli che attesta non sono stati modificati nella soluzione. Nel caso in cui una di queste funzioni accertasse l'inammissibilità della soluzione corrente veniva 
+lanciata un eccezione, la quale riportava il vincolo non era stato soddisfatto.
+
+
+\subsection{Validazione}
+
+Al raggiungimento di ogni stato rilevante dell'applicativo eseguivo un collaudo. Questo aveva il compito di accertare che i risultati ottenuti fossero in linea con
+quanto ci si aspetta dalla pianificazione reale. Per fare ciò eseguivo l'applicativo con i dati reali di una specifica azienda, dei quali si era giunti ad ottenere
+una soluzione relativamente buona. Una volta confrontate le due soluzioni evidenziavo le eventuali discrepanze e passavo ad una verifica accurata di quanto ottenuto.
+Seguiva poi una discussione con il tutor interno per accertarsi che tali scostamenti derivassero dalle nuove aggiunte e non fossero errori logici del programma.\\ Una volta 
+accertati che la soluzione ottenuta fosse ammissibile e coerente veniva salvata e impiegata nelle successive fasi di validazione e collaudo.
+
+\section{Risultati dei test}
+
+Di seguito vengono riportati i risultati sui test effettuati durante le varie fasi di sviluppo del progetto. Sono presentati in forma grafica così da garantire un immediata
+comprensione.\\ I dati utilizzati per ottenere questi risultati fanno parte degli ordini, delle giacenze di magazzino 
+e degli ordini fornitori di uno specifico cliente di Ergon Informatica.\\
+Ogni test è stato effettuato sullo stesso ammontare di ordini distribuito in una singola settimana lavorativa, questo per garantire una continuità tra i vari test eseguiti.\\
+L'insieme dei dati utilizzati sono i seguenti:
+\begin{itemize}
+    \item Numero ordini = 273;
+    \item Numero semilavorati = 183;
+    \item Numero giacenze = 525;
+    \item Numero ordini fornitori = 57.
+\end{itemize}
+
+Si precisa che non tutti gli ordini devono essere pianificati e che vengono presi in considerazione solo i dati riguardanti la settimana corrente di pianificazione.
+Ogni grafico è presentato in due diverse versioni, una tramite grafico a barre per confrontare le diverse misurazioni e una tramite grafico a dispersione per evidenziare
+l'andamento della soluzione.
+\subsection{Pianificazione prodotti finiti}
+
+Qui di seguito viene rappresentato l'andamento temporale dell'esecuzione dell'algoritmo Greedy e Tabu Search al variare del numero di iterazione massime consentite.
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficoPF.png}
+	\centering
+	\caption{Grafico prodotti finiti}
+\end{figure}
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficoPF2.png}
+	\centering
+	\caption{Grafico prodotti finiti}
+\end{figure}
+
+Come possiamo notare il tempo di esecuzione dell'algoritmo Greedy non varia in quanto non è dipendente dal numero di iterazioni ma solo dal numero di ordini.\\
+Per quanto riguarda il tempo di esecuzione dell'algoritmo Tabu Search vediamo un aumento in proporzione al variare del numero di iterazioni.
+Di seguito viene mostrato il miglioramento in percentuale ottenuto dall'algoritmo di ottimizzazione.
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficoPF3.png}
+	\centering
+	\caption{Grafico miglioramento prodotti finiti}
+\end{figure}
+
+Dopo vari test eseguiti posso affermare che, considerando anche il tempo impiegato, il numero di iterazioni ideale si assesti tra le 1000 e 2000 iterazioni.
+Superate le 2000 iterazioni il miglioramento assume un ordine asintotico ed evidenzia solo uno spreco di tempo di esecuzione. 
+
+\newpage
+\subsection{Pianificazione semilavorati}
+
+Di seguito sono rappresentati i risultati dei test eseguiti dopo il primo importante avanzamento del progetto ovvero la pianificazione dei semilavorati.
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficoSL.png}
+	\centering
+	\caption{Grafico semilavorati}
+\end{figure}
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficosl2.png}
+	\centering
+	\caption{Grafico semilavorati}
+\end{figure}
+
+La prima cosa da notare è l'aumento del tempo di esecuzione da parte dell'algoritmo Greedy, il quale necessita ora di un elevato numero di controlli aggiuntivi. La funzione
+stessa è stata resa ricorsiva\glosp in modo da riutilizzare il codice al suo interno per eseguire la pianificazione dei semilavorati. Questo ha permesso anche di creare una
+relazione diretta tra il semilavorato e il suo prodotto finito, il tutto tramite una relazione padre figlio creata appositamente nella classe.
+In compenso l'algoritmo di Tabu Search non ha subito un aumento considerevole del tempo di esecuzione ma ha subito un calo drastico nella capacità di ottimizzazione della
+soluzione.
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficosl3.png}
+	\centering
+	\caption{Grafico miglioramento semilavorati}
+\end{figure}
+
+Come possiamo notare ora, al termine delle 2000 iterazioni, il fattore di miglioramento percentuale si aggira attorno 19 percentile. Questo è dovuto al fatto che l'algoritmo
+si trova difronte a un elevato numero di controlli ausiliari prima di poter eseguire una mossa. Si prenda ad esempio la mossa di eliminazione, non può essere effettuata su un semilavorato
+per questioni logico/reali in quanto non sarebbe più possibile pianificare il suo prodotto finito relativo. Allo stesso modo non è possibile spostare la pianificazione di un
+semilavorato successivamente al suo prodotto finito e viceversa non è possibile pianificare il prodotto finito prima dei suoi semilavorati. Ciò è la causa della perdita di
+capacità di ottimizzare la soluzione ottenuta dall'algoritmo Greedy.
+
+\newpage
+\subsection{Controllo ordini fornitori}
+
+In aggiunta alla pianificazione dei semilavorati è stato aggiunto il controllo sull'arrivo di materiale da parte dei fornitori.\\Ciò permette di non scartare a priori la possibilità
+di pianificare alcuni ordini che, a causa dell'assenza di materiali,non verrebbero considerati. In questo modo vengono considerati pianificabili tutti gli ordini per i quali
+è presente almeno un ordine fornitore che soddisfa la quantità di materiali necessari. 
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficofo.png}
+	\centering
+	\caption{Grafico ordini fornitori}
+\end{figure}
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficofo2.png}
+	\centering
+	\caption{Grafico ordini fornitori}
+\end{figure}
+
+Come si può notare il tempo di esecuzione dell'algoritmo Greedy non è aumentato in quanto i controlli di questo tipo sono molto più veloci rispetto alla fase precedente.
+Per quanto riguarda la Tabu Search notiamo anche in questo caso un aumento di tempo al variare del numero di iterazioni, ma rimanendo comunque entro limiti accettabili.
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficofo3.png}
+	\centering
+	\caption{Grafico miglioramento ordini fornitori}
+\end{figure}
+
+Da questo grafico si evince la netta incapacità della Tabu Search di ottenere una soluzione migliore partendo dalla soluzione fornita dall'algoritmo Greedy.\\
+Questo avviene perché, in questo caso particolare, molti ordini sarebbero pianificabili per quanto riguarda i materiali a disposizione (cosa non realizzabile per le fasi
+precedenti) e questo va a diminuire nettamente il risultato del rapporto \[\frac{\text{Pezzi pianificati}}{\text{Totale pezzi richiesti}} * \text{Peso del rapporto pezzi}\]\\
+dove in \textit{Totale pezzi richiesti} vengono considerati tutti gli ordini producibili.\\ Inoltre avendo un grandissimo numero di ordini producibili le mosse eseguite 
+dalla Tabu Search non fanno altro che sostituire ordini con altri ordini quindi non può ottenere un miglioramento significativo.
+
+\newpage
+\subsection{Criteri di diversificazione}
+
+Mi è stato richiesto inoltre di applicare dei criteri di diversificazione per quanto riguarda la Tabu Search.\\ Dopo l'implementazione di tale tecnica ho eseguito i test su dei
+dati specifici, in quanto non avrei ottenuto grandi risultati basandomi sulle ultime aggiunte del progetto.
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/diversificazione.png}
+	\centering
+	\caption{Grafico diversificazione}
+\end{figure}
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/diversificazione2.png}
+	\centering
+	\caption{Grafico diversificazione}
+\end{figure}
+
+Come possiamo notare dai grafici sopra, vi è un aumento del 20\% circa, in ogni stato di esecuzione.\\ Questo evidenzia l'efficacia dei criteri di diversificazione utilizzati.
+Inoltre, esaminando le soluzione fornite pre e post inserimento dei criteri, si può notare che questi ultimi prediligono la pianificazione di ordini aventi un maggior numero
+di pezzi, tralasciando molti ordini aventi un quantitativo di pezzi inferiore alla media. \\Tali dati verranno presi in considerazione da Ergon Spa per decidere, in base
+alle esigenze dei clienti, quale delle due politiche di pianificazione adottare.

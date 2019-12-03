@@ -73,7 +73,7 @@ Si fa riferimento allo standard UML 2.0 per la rappresentazione dei casi d'uso.
     \item Il cliente preme il pulsante "Conferma".
 \end{itemize}
 \textbf{Postcondizione}: Si verrà ricondotti allo use case UC-3.3.
-
+\newpage
 \section{Tracciamento dei requisiti}
 
 Ogni requisito è composto dalla seguente struttura:
@@ -106,7 +106,10 @@ Ogni requisito è composto dalla seguente struttura:
 
 \subsection{Requisiti funzionali}
 
-\rowcolors{2}{pari}{dispari}
+
+\renewcommand{\arraystretch}{1.5}
+\rowcolors{2}{dispari}{pari}
+\arrayrulecolor{white}
 
 \begin{longtable}{ >{\centering}p{0.15\textwidth} >{\centering}p{0.20\textwidth}
 		>{\raggedright}p{0.35\textwidth} >{\centering}p{0.14\textwidth}}
@@ -125,22 +128,23 @@ Ogni requisito è composto dalla seguente struttura:
 	
 	\endhead	
 	
-	RFO1	&	Obbligatorio	&	Il sistema permette l’inserimento di un nuovovincolo di linea	 \tabularnewline
-	RFO2	&	Obbligatorio	&	Il sistema permette la modifica dei dati di unvincolo di linea esistente	\tabularnewline
-	RFO3	&	Obbligatorio	&	Il sistema permette l’eliminazione di un vincolo dilinea 	\tabularnewline
+	RFO1	&	Obbligatorio	&	Il sistema permette l’inserimento di un nuovo vincolo di linea	 \tabularnewline
+	RFO2	&	Obbligatorio	&	Il sistema permette la modifica dei dati di un vincolo di linea esistente	\tabularnewline
+	RFO3	&	Obbligatorio	&	Il sistema permette l’eliminazione di un vincolo di linea 	\tabularnewline
 	RFO4	&	Obbligatorio	&	L’interfaccia permette l’eliminazione di una linea 	\tabularnewline
-	RFO5	&	Obbligatorio	&	 Il sistema permette l’aggiunta di una nuovasequenza	\tabularnewline
-	RFO6	&	Obbligatorio	&	 Il sistema permette la modifica dei dati di unasequenza esistente	\tabularnewline
-	RFO7	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un articolo disequenza esistente	\tabularnewline
-	RFO8	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un vincolo disequenza esistente	\tabularnewline
+	RFO5	&	Obbligatorio	&	 Il sistema permette l’aggiunta di una nuova sequenza	\tabularnewline
+	RFO6	&	Obbligatorio	&	 Il sistema permette la modifica dei dati di una sequenza esistente	\tabularnewline
+	RFO7	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un articolo di sequenza esistente	\tabularnewline
+	RFO8	&	Obbligatorio	&	 Il sistema permette l’eliminazione di un vincolo di sequenza esistente	\tabularnewline
 	RFO9	&	Obbligatorio	&	 Il sistema permette l’eliminazione di una sequenza	\tabularnewline
-	RFO10	&	Obbligatorio	&	 Il sistema permette all’utente di scegliere un tempomassimo di esecuzione dell’algoritmo	\tabularnewline
-	RFO11	&	Obbligatorio	&	 Il sistema permette all’utente di assegnare un pesoall’importanza di parametri di produzione quali:pezzi prodotti e occupazione delle linee	\tabularnewline
-	RFD1	&	Desiderabile	&	 Il sistema permette all’utente di scegliere sericalcolare la pianificazione già esistente	\tabularnewline
-	RFO12	&	Obbligatorio	&	 Il sistema permette di pianificare automaticamen-te la produzione dato un insieme di ordini e unintervallo di tempo	\tabularnewline
-	RFO1	&	Obbligatorio	&	 Il sistema permette di sceglire i relativi criteri di pianificazione	\tabularnewline
+	RFO10	&	Obbligatorio	&	 Il sistema permette all’utente di scegliere un tempo massimo di esecuzione dell’algoritmo	\tabularnewline
+	RFO11	&	Obbligatorio	&	 Il sistema permette all’utente di assegnare un peso all’importanza di parametri di produzione quali:pezzi prodotti e occupazione delle linee	\tabularnewline
+	RFD1	&	Desiderabile	&	 Il sistema permette all’utente di scegliere se ricalcolare la pianificazione già esistente	\tabularnewline
+	RFO12	&	Obbligatorio	&	 Il sistema permette di pianificare automaticamente la produzione dato un insieme di ordini e un intervallo di tempo	\tabularnewline
+	RFO1	&	Obbligatorio	&	 Il sistema permette di scegliere i relativi criteri di pianificazione	\tabularnewline
 \end{longtable}
 
+\newpage
 \subsection{Requisiti qualitativi}
 
 \rowcolors{2}{pari}{dispari}
@@ -163,7 +167,7 @@ Ogni requisito è composto dalla seguente struttura:
 	\endhead	
 	
 	RQD1	&	Desiderabile	&	Il programma genera un file di Log\glosp di supporto al Debug\glo	 \tabularnewline
-	RQO1	&	Obbligatorio	&	Ogni scelta non banale effettuata è adeguatamentecommentata nel codice	\tabularnewline
+	RQO1	&	Obbligatorio	&	Ogni scelta non banale effettuata è adeguatamente commentata nel codice	\tabularnewline
 	RQF1	&	Facoltativo		&	Fornire un manuale utente	\tabularnewline
 	RQF2	&	Facoltativo		&	Fornire un manuale sviluppatore	\tabularnewline
 
@@ -196,7 +200,7 @@ Ogni requisito è composto dalla seguente struttura:
 	RPD3	&	Desiderabile	&	La fase di lettura dei dati deve essere eseguita in tempi inferiori ai 30 minuti \tabularnewline
 
 \end{longtable}
-
+\newpage
 \subsection{Requisiti vincolo}
 
 \rowcolors{2}{pari}{dispari}
@@ -231,7 +235,7 @@ Ogni requisito è composto dalla seguente struttura:
 
 \end{longtable}
 
-
+\newpage
 \subsection{Riepilogo dei requisiti}
 
 \rowcolors{2}{pari}{dispari}
@@ -254,7 +258,7 @@ Ogni requisito è composto dalla seguente struttura:
 	Totali	&	24	&   5 &	2 \tabularnewline
 \tabularnewline \tabularnewline
 \end{longtable}
-
+\newpage
 \section{Tecnologie e strumenti}
 
 Di seguito sono riportate tutte le tecnologie utilizzate durante lo sviluppo del progetto.
@@ -280,6 +284,7 @@ Nel progetto viene utilizzato questo linguaggio per poter usufruire delle classi
 chiuso alle modifiche e aperto agli ampliamenti. Viene inoltre utilizzato in quanto è il linguaggio attualmente adottato dall'azienda per lo sviluppo e si presta bene
 al tipo di lavorazioni necessarie a portare a compimento lo sviluppo dell'applicativo.
 
+\newpage
 \textbf{Visual Studio 2010}
 
 \begin{figure}[H]
@@ -292,7 +297,7 @@ Ambiente di sviluppo integrato sviluppato da Microsoft.
 La prima versione risale al 1997 e aveva lo scopo di fornire
 un ambiente di sviluppo grafico ed  ed integrato che aiutasse lo sviluppatore a gestire i progetti in maniera semplice, ma efficace, aumentandone quindi la produttività.
 Microsoft ha incluso il supporto a differenti linguaggi di programmazione.
-In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni desktop che mobile, di conseguenza è stato utilizzato anche durante lo sviluppo del progetto.
+In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni desktop che mobile, di conseguenza è stato utilizzato anche durante lo sviluppo del progetto.\\
 
 \textbf{DevExpress}
 
@@ -306,7 +311,7 @@ In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni 
 In particolare nel progetto ci si è appoggiati a questa tecnologia per velocizzare la creazione dell'interfaccia grafica sulla quale si basa il modo di rappresentare la soluzione
 che viene fornita, permettendo una chiara visualizzazione tabellare grazie ad una delle tante estensioni\glosp utilizzabili. 
 
-
+\newpage
 \textbf{JSON}
 
 \begin{figure}[H]
@@ -319,7 +324,7 @@ Acronimo di \textit{JavaScript Object Notation}, è un formato adatto all'inters
 Serve, in particolare, a fornire una struttura a dati interessati rendendoli interscambiabili tra diverse applicazioni senza che si renda necessaria la codifica e decodifica di quest'ultimi.
 Nel nostro caso si rende utile quando è necessario delegare l'esecuzione di operazioni sui dati prelavati da un terminale con accesso al database verso un terminale esterno.
 I dati raccolti dal database venivano trasferiti in un file JSON, il quale veniva inviato al successivo passo di esecuzione dell'algoritmo, al termine di ciò veniva restituita
-la soluzione sempre in formato JSON a chi ne aveva fatto richiesta e di conseguenza visualizzata.
+la soluzione sempre in formato JSON a chi ne aveva fatto richiesta e di conseguenza visualizzata.\\
 
 \textbf{Informix}
 
