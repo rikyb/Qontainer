@@ -10,25 +10,26 @@
 \section{Progettazione}
 \subsection{Architettura}
 
-Prima di descrivere la varie aggiunte che sono state apportate al software è necessario fornire un'idea dell'architettura sulla quale il progetto si basa.In questo modo si 
-rendono più chiare molte delle scelte che sono state prese e il perchè altre sono state scartate.\\ Di seguito è presentato uno schema ad alto livello di come sono strutturate le
-varie componenti che formano l'intero sistema. Come possiamo notare dalla figura sottostante, il progetto segue un flusso pressoché "ciclico", partendo dal recupero dei dati dal
-database e infine fornendo la soluzione.\\ I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione,
+Prima di descrivere la varie aggiunte che sono state apportate al software, è necessario fornire un'idea dell'architettura sulla quale il progetto si basa. In questo modo si 
+rendono più chiare molte delle scelte che sono state prese e il perché altre sono state scartate.\\ Di seguito è presentato uno schema ad alto livello di come sono strutturate le
+varie componenti che formano l'intero sistema. Come possiamo notare in \hyperref[4.1]{Figura 4.1}, il progetto segue un flusso pressoché "ciclico", partendo dal recupero dei dati dal
+database e infine fornendo la soluzione. I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione,
 una volta fornita la soluzione essa viene ritradotta in un file JSON il quale viene letto e trasposto nell'interfaccia utente.
 
 \begin{figure}[H]
-	\includegraphics[width=10cm]{immagini/architettura.png}
+	\includegraphics[width=13cm]{immagini/architettura.png}
 	\centering
-	\caption{Architettura generale}
+    \caption{Architettura generale}
+    \label{4.1}
 \end{figure}
 
 \subsection{Algoritmo}
 
 \textbf{Il problema}
 
-Dovendo integrare delle nuove funzionalità al programma esistente, si è prima effettuata un analisi del problema esistente per quanto riguarda la pianificazione della produzione,
-in modo da poter comprendere alcune delle scelte euristiche\glosp che sono state effettuate in seguito.\\
-Il suddetto problema rientra nella categoria NP-hard\glosp in quanto è riconducibile al problema del commesso viaggiatore\glo. A tali problemi non è possibile far corrispondere
+Dovendo integrare delle nuove funzionalità al programma esistente, si è prima effettuata un analisi del problema per quanto riguarda la pianificazione della produzione\hyperref[slide0]{\textsuperscript{14}},
+in modo da poter comprendere alcune delle scelte \hyperref[Euristica]{euristiche\glo} \hyperref[slide]{\textsuperscript{15}} che sono state effettuate in seguito.\\
+Il suddetto problema rientra nella categoria \hyperref[Np-hard]{NP-hard\glo} in quanto è riconducibile al problema del \hyperref[Commesso viaggiatore]{commesso viaggiatore\glo} \hyperref[commesso]{\textsuperscript{16}}. A tali problemi non è possibile far corrispondere
 una soluzione ottima ma, al massimo, la miglior approssimazione possibile di una soluzione ammissibile. In aggiunta al problema del commesso viaggiatore si devono considerare
 altri vincoli come: 
 \begin{itemize}
@@ -54,20 +55,20 @@ in base ai vincoli imposti.\newline
 \textbf{La soluzione}
 
 Dovendo appoggiarsi all'algoritmo esistente, non è stato possibile eseguire uno stravolgimento completo del suo funzionamento, anzi si è cercato di inserire le nuove funzionalità
-in modo da integrarle il più possibile senza effettuare modifiche sostanziali alla struttura del codice esistente.\\ Per fare ciò si è fatto ampio uso di nuove funzioni e classi, per poter
-delegare, dalla base esistente, l'esecuzione di nuovi moduli di pianificazione.\\ La struttura di partenza sulla quale vengono integrati i nuovi moduli è composta da un iniziale
-fase di lettura dei dati dal database. Tali dati vengono convertiti in un file JSON che, per comodità di esecuzione, viene letto nuovamente dallo stesso programma, anche se
+in modo da integrarle il più possibile, senza effettuare modifiche sostanziali, alla struttura del codice esistente.\\ Per fare ciò si è fatto ampio uso di nuove funzioni e classi, per poter
+delegare, dalla base esistente, l'esecuzione di nuovi moduli di pianificazione.\\ La struttura di partenza sulla quale vengono integrati i nuovi moduli è composta da una fase iniziale
+di lettura dei dati dal database. Tali dati vengono convertiti in un file JSON che, per comodità di esecuzione, viene letto nuovamente dallo stesso programma, anche se
 l'dea di base sarebbe quella di delegare la sua lettura e successiva elaborazione dei dati ad un sistema centralizzato esterno all'azienda che fornisce i dati stessi.\\
 Una volta ottenuti i dati in formato JSON, vengono inseriti nell'algoritmo tramite l'impiego di classi e strutture predisposte. Tali classi vengono utilizzate come parametri
-per la prima funzione che si pone come obiettivo quello di fornire una soluzione ammissibile nel minor tempo possibile ovvero l'Algoritmo Greedy\glo.\\ Tale algoritmo ha il compito
+per la prima funzione che si pone come obiettivo quello di fornire una soluzione ammissibile nel minor tempo possibile ovvero l'Algoritmo \hyperref[Greedy]{Greedy\glo}.\\ Tale algoritmo ha il compito
 di valutare, in modo sequenziale, i vari ordini che necessitano di essere pianificati, se un ordine soddisfa i vincoli imposti allora verrà inserito nella soluzione iniziale.
-Una volta ottenuta la soluzione iniziale, questa viene fornita alla successiva funzione di ottimizzazione, composta da un algoritmo di Tabu Search\glo. Tale algoritmo ha il compito
-di eseguire un insieme di mosse specifiche in modo casuale, valutando di volta in volta la bontà della soluzione ottenuta dopo la sua esecuzione. Al termine di un numero prefissato
+Una volta ottenuta la soluzione iniziale, questa viene fornita alla successiva funzione di ottimizzazione, composta da un algoritmo di \hyperref[Tabu Search]{Tabu Search\glo}. Tale algoritmo ha il compito
+di eseguire un insieme di mosse specifiche in modo casuale, valutando di volta in volta la bontà della soluzione ottenuta dopo la loro esecuzione. Al termine di un numero prefissato
 di iterazioni, o dopo aver soddisfatto i criteri di aspirazione, verrà fornita la soluzione ottimizzata da visualizzare.\\
 Visto che le scelte implementative non sempre possono essere chiare o si potrebbe pensare di utilizzare una metodologia diversa, viene illustrato di seguito il funzionamento
 degli algoritmi su cui fa affidamento la pianificazione della produzione.\\
 
-\textbf{Algoritmo Greedy}
+\textbf{Algoritmo Greedy\hyperref[greedy]{\textsuperscript{17}}}
 
 È il primo passo per ottenere una soluzione ammissibile del problema in questione. Tale algoritmo è sviluppato tenendo in considerazione che non è possibile effettuare dei "passi indietro",
 ovvero, una volta inserito un ordine in pianificazione tale ordine rimane fino alla fine dell'esecuzione. I parametri in ingresso di tale algoritmo sono i seguenti:
@@ -81,7 +82,7 @@ ovvero, una volta inserito un ordine in pianificazione tale ordine rimane fino a
 L'ordine di funzionamento è quindi il seguente:
 
 \begin{itemize}
-    \item prima scelta euristica, vengono ordinati i prodotti in base alla loro data di spedizione;
+    \item prima scelta \hyperref[Euristica]{euristica\glo}, vengono ordinati i prodotti in base alla loro data di spedizione;
     \item il primo ordine in questione viene valutato;
     \item si verifica la presenza di materie prime, e qui abbiamo i seguenti casi:
             \begin{itemize}
@@ -107,10 +108,10 @@ il risultato fornito al termine della sua esecuzione, in alcuni casi, ha un ampi
 soluzione iniziale nel modo più rapido possibile, in modo da ottenere una base di partenza per la successiva ottimizzazione eseguita dall'algoritmo Tabu Search.\\
 
 
-\textbf{Tabu Search}
+\textbf{Tabu Search\hyperref[tabu]{\textsuperscript{18}}}
 
 Una volta ottenuta la prima soluzione ammissibile, fornita dall'algoritmo Greedy, l'esecuzione si sposta sulla sua ottimizzazione tramite la Tabu Search.
-Questa particolare tecnica meta-euristica\glosp ha lo scopo di fornire una soluzione migliore, più vicina all'ottimo, tramite l'esecuzione di un insieme di mosse ben
+Questa particolare tecnica meta-euristica ha lo scopo di fornire una soluzione migliore\hyperref[scheduling]{\textsuperscript{19}}, più vicina all'ottimo, tramite l'esecuzione di un insieme di mosse ben
 definite in modo casuale. L'esecuzione di queste mosse in modo casuale porta ogni volta ad una nuova soluzione ammissibile, tale risultato viene poi confrontato con la soluzione
 precedente, se il risultato è migliorativo allora verrà considerato come nuova miglior soluzione e si utilizzerà per la successiva ottimizzazione, altrimenti tale risultato 
 verrà semplicemente scartato e si prosegue con l'esecuzione della mossa successiva. Di seguito è presentato l'ordine di funzionamento di tale algoritmo:
@@ -135,9 +136,9 @@ verrà semplicemente scartato e si prosegue con l'esecuzione della mossa success
 \textit{Scelta della mossa}\\
 È utile entrare maggiormente nel dettaglio dei punti precedenti per avere un'idea di come si ottiene la soluzione ottimizzata.\\
 Al punto uno, la scelta della mossa, viene eseguita inizialmente in modo casuale, sottolineo inizialmente in quanto, uno degli obiettivi che mi sono stati richiesti, riguardava
-l'impiego di alcuni metodi di diversificazione\glosp o intensificazione\glo. Tali metodi si applicano ad algoritmi di questo tipo per "forzare" la successiva mossa da scegliere,
+l'impiego di alcuni metodi di \hyperref[Diversificazione]{diversificazione\glo} o \hyperref[Intensificazione]{intensificazione\glo}. Tali metodi si applicano ad algoritmi di questo tipo per "forzare" la successiva mossa da scegliere,
 quindi non rendendola più completamente casuale. Nel caso dell'intensificazione si punta a scegliere l'insieme di mosse che, ad esempio, nelle loro esecuzioni precedenti hanno fornito
-risultati migliori e quindi si pensa potranno fornire migliori risultati anche in futuro, in questo modo ci si concentra maggiormente su queste scartando le altre.
+risultati migliori e quindi si pensa potranno fornire migliori risultati anche in futuro, in questo modo ci si concentra maggiormente su queste scartando le altre.\\
 Al contrario, la diversificazione, può decidere di eseguire le mosse che sono state meno eseguite in precedenza così da indirizzare i risultati verso strade mai 
 percorse.\\ È proprio quest'ultimo caso che, a seguito di una discussione con il tutor aziendale, ho inserito nel programma esistente. Il suo funzionamento è semplice ma non banale:
 dopo l'esecuzione di metà delle iterazioni concesse alla Tabu Search entra in gioco tale meccanismo, ho deciso di considerare l'esatta metà così da poter ottenere inizialmente una
@@ -151,7 +152,8 @@ per poter garantire comunque un alto grado di casualità, criterio su cui fa aff
 
 \textit{Validazione della mossa scelta}\\
 Anche in questo caso è utile approfondire come avviene la validazione di una mossa scelta in modo casuale. In particolare, in alcuni casi, possiamo direttamente scartare
-l'esecuzione della mossa perché siamo sicuri che porterà ad una soluzione non migliorativa.\\ Ogni algoritmo di Tabu Search fa affidamento su una relativa Tabu List\glo, la quale
+l'esecuzione della mossa perché siamo sicuri che porterà ad una soluzione non migliorativa.\\ Ogni algoritmo di Tabu Search fa affidamento su una relativa 
+\hyperref[Tabu List]{Tabu List\glo} \hyperref[list]{\textsuperscript{20}}, la quale
 non è altro che uno storico delle mosse eseguite in precedenza, le quali non dovranno essere rieseguite, almeno nell'immediato futuro.\\ Un criterio importante da tenere presente
 è la lunghezza che si sceglie di dare a tale lista, questo perché una lista troppo corta non garantisce che non vengano eseguite mosse utilizzate da poco tempo, mentre, una 
 lista troppo lunga tende a creare troppa diversificazione delle soluzioni.\\ Nel mio progetto alla Tabu List è stata assegnata una lunghezza di 500, considerando anche il fatto
@@ -186,7 +188,7 @@ Qui otteniamo il punteggio di maggior spessore, dal quale si sottraggono i segue
 \[\frac{\text{Tempo totale di pianificazione}}{\text{Massimo tempo a disposizione}} * \text{Peso del rapporto tempo}\]\\
 
 Una volta ottenuto il relativo punteggio viene eseguito il confronto con la soluzione precedente e si sceglie la soluzione avente il punteggio più alto.\\
-Questo non è l'unico metodo con il quale si sceglie la soluzione che riteniamo essere migliore.\\ Vengono impiegati dei criteri di aspirazione\glosp i quali hanno il compito
+Questo non è l'unico metodo con il quale si sceglie la soluzione che riteniamo essere migliore.\\ Vengono impiegati dei criteri di \hyperref[Criteri di aspirazione]{aspirazione\glo} i quali hanno il compito
 di valutare anche soluzioni che hanno punteggi inferiori alla precedente ma che potrebbero essere un buon punto di partenza per la valutazione di soluzioni successive.\\
 Nel progetto è stato inserito un criterio di aspirazione con il seguente funzionamento: se la nuova soluzione ha un punteggio inferiore alla soluzione precedente, ma il 
 numero di pezzi prodotti è superiore, allora se la differenza è inferiore al 2\% la nuova soluzione è considerata migliore. Questo perché lo scopo ultimo della pianificazione
@@ -204,7 +206,7 @@ Per fare ciò ho seguito i passi presentati di seguito:\\ \\
 \textbf{Controllo giacenze}
 \begin{enumerate}
         \item lettura dal database dei dati riguardanti le giacenze;
-        \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base\glosp dei prodotti finiti; 
+        \item utilizzo di una funzione di esplosione distinta per ottenere la \hyperref[Distinta base]{distinta base\glo} dei prodotti finiti; 
         \item scrittura dei dati in un file JSON;
         \item creazione di una classe volta a lavorare sulle giacenze;
         \item creazione di una funzione volta al controllo della presenza di materiali per eseguire la pianificazione;
@@ -215,7 +217,7 @@ Per fare ciò ho seguito i passi presentati di seguito:\\ \\
 
 \textbf{Pianificazione semilavorati} 
 \begin{enumerate}
-        \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base\glosp dei prodotti finiti; 
+        \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base dei prodotti finiti; 
         \item scrittura dei dati in un file JSON;
         \item riutilizzo della classe \textit{Ordine} per i semilavorati;
         \item ampliamento delle funzionalità della classe \textit{Ordine} per tenere traccia dei semilavorati di ogni prodotto finito;
@@ -235,7 +237,7 @@ Di seguito è mostrato come si presenta la pianificazione restituita dall'applic
     \caption{Pianificazione semilavorati}
 \end{figure}
 
-Dall'immagine precedente vediamo che \textit{F78} è un semilavorato,di cui abbiamo 100kg in giacenza, richiesto dai prodotti finiti \textit{I42} e \textit{I43}.
+Dall'immagine precedente vediamo che \textit{F78} è un semilavorato,di cui abbiamo 100kg in giacenza, richiesto dai prodotti finiti \textit{I42} e \textit{I43}.\\
 Sappiamo che i due prodotti finiti in questione richiedono 300kg del semilavorato \textit{F78} ciascuno, e vediamo che il martedì ne sono pianificati esattamente 500kg
 per garantire la produzione di \textit{I42} e \textit{I43} il mercoledì.
 
@@ -259,7 +261,7 @@ per garantire la produzione di \textit{I42} e \textit{I43} il mercoledì.
         \item utilizzo di tutti i vincoli precedenti per effettuare la pianificazione.\\
 \end{enumerate}
 
-\textbf{Criteri di Diversificazione/Intensificazione}\\ \\
+\textbf{Criteri di Diversificazione/Intensificazione\hyperref[criteria]{\textsuperscript{21}}}\\ \\
 In questa fase ho studiato come ottenere il massimo dall'esecuzione dell'algoritmo Tabu Search.\\
 Si è infine scelto di utilizzare una tecnica di diversificazione come spiegato nella sezione precedente.
 
@@ -274,7 +276,7 @@ codice applicativo.
 
 \subsection{Analisi statica}
 
-Ho fatto ampio uso dello strumento di debug fornito da Visual Studio 2010 e ho creato una lista di controllo tramite breakpoint\glosp in modo da poter
+Ho fatto ampio uso dello strumento di debug fornito da Visual Studio 2010 e ho creato una lista di controllo tramite \hyperref[Breakpoint]{breakpoint\glo} in modo da poter
 valutare, durante l'esecuzione, lo stato del software ad ogni punto critico. Ciò mi ha permesso di individuare efficacemente gli errori a livello logico che si sono presentati
 durante la varie fasi di sviluppo. Ho proseguito poi con un controllo effettivo sulla soluzione presentata a video dal programma, la quale veniva valutata a campione su determinati 
 ordini specifici, in modo da ottenere un riscontro reale della bontà della soluzione stessa. 
@@ -359,7 +361,7 @@ Di seguito sono rappresentati i risultati dei test eseguiti dopo il primo import
 \end{figure}
 
 La prima cosa da notare è l'aumento del tempo di esecuzione da parte dell'algoritmo Greedy, il quale necessita ora di un elevato numero di controlli aggiuntivi. La funzione
-stessa è stata resa ricorsiva\glosp in modo da riutilizzare il codice al suo interno per eseguire la pianificazione dei semilavorati. Questo ha permesso anche di creare una
+stessa è stata resa \hyperref[Ricorsione]{ricorsiva\glo} in modo da riutilizzare il codice al suo interno per eseguire la pianificazione dei semilavorati. Questo ha permesso anche di creare una
 relazione diretta tra il semilavorato e il suo prodotto finito, il tutto tramite una relazione padre figlio creata appositamente nella classe.
 In compenso l'algoritmo di Tabu Search non ha subito un aumento considerevole del tempo di esecuzione ma ha subito un calo drastico nella capacità di ottimizzazione della
 soluzione.

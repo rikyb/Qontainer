@@ -35,10 +35,11 @@
 
 \usepackage[T1]{fontenc}                % codifica dei font:
                                         % NOTA BENE! richiede una distribuzione *completa* di LaTeX
-
+\usepackage{url}
 \usepackage{libertine}
 %\usepackage{libertinust1math}
 \usepackage{lmodern}
+\usepackage{enumerate}
 
 \usepackage[utf8]{inputenc}             % codifica di input; anche [latin1] va bene
                                         % NOTA BENE! va accordata con le preferenze dell'editor
@@ -119,7 +120,8 @@
 \input{inizio-fine/sommario}
 \input{inizio-fine/ringraziamenti}
 \input{inizio-fine/indici}
-\cleardoublepage
+\input{inizio-fine/convenzioni}
+%\cleardoublepage
 
 %**************************************************************
 % Materiale principale
@@ -130,11 +132,11 @@
 \input{capitoli/capitolo-3}             % Kick-Off
 \input{capitoli/capitolo-4}             % Concept Preview
 \input{capitoli/capitolo-5}             % Product Prototype
+\input{capitoli/Glossario}             % Product Prototype
 
 %**************************************************************
 % Materiale finale
 %**************************************************************
 \backmatter
-\printglossaries
 \input{inizio-fine/bibliografia}
 \end{document}
