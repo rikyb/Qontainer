@@ -28,7 +28,7 @@ una volta fornita la soluzione essa viene ritradotta in un file JSON il quale vi
 \textbf{Il problema}
 
 Il problema della pianificazione della produzione rientra nella categoria \hyperref[Np-hard]{NP-hard\glo} in quanto è riconducibile al problema del 
-\hyperref[Commesso viaggiatore]{commesso viaggiatore\glo} \hyperref[commesso]{\textsuperscript{16}}. 
+\hyperref[Commesso viaggiatore]{commesso viaggiatore\glo} \hyperref[slide]{[15]}. 
 In aggiunta al problema del commesso viaggiatore si devono considerare
 altri vincoli come: 
 \begin{itemize}
@@ -37,7 +37,7 @@ altri vincoli come:
     \item vincoli generali di sequenza che andremo a definire in seguito.
 \end{itemize}
 
-Queste caratteristiche avevano portato, nella precedente fase del progetto, a optare per lo sviluppo di algoritmi di soluzione \hyperref[Euristica]{euristici\glo [16]}.
+Queste caratteristiche avevano portato, nella precedente fase del progetto, a optare per lo sviluppo di algoritmi di soluzione \hyperref[slide]{euristici\glo [15]}.
 Con la richiesta di estendere tale progetto, il numero di vincoli da soddisfare cresce in proporzione al numero di ordini che si vogliono pianificare.
 In particolare vanno tenuti in considerazione i vincoli precedenti più l'aggiunta dei seguenti:
 
@@ -47,7 +47,7 @@ In particolare vanno tenuti in considerazione i vincoli precedenti più l'aggiun
     \item verifica della disponibilità di materie prime e semilavorati in base agli ordini fornitori.
 \end{itemize}
 
-In conclusione, il problema che il progetto si pone di risolvere, consiste nel trovare una soluzione ammissibile, quanto più vicina all'ottimo,
+In conclusione, il problema che il progetto si pone di risolvere, consiste nel trovare una soluzione ammissibile \hyperref[slide0]{[16]}, quanto più vicina all'ottimo,
 della pianificazione
 in base ai vincoli imposti.\newline
 
@@ -69,7 +69,7 @@ Di seguito viene illustrato il funzionamento degli algoritmi adottati, ottenuti 
 
 \textbf{Algoritmo Greedy}
 
-L'algoritmo Greedy \hyperref[greedy]{[17]} è il primo passo per ottenere una soluzione ammissibile del problema in questione. Tale algoritmo è sviluppato tenendo in considerazione che non è possibile effettuare dei "passi indietro",
+L'algoritmo Greedy \hyperref[slide]{[15]} è il primo passo per ottenere una soluzione ammissibile del problema in questione. Tale algoritmo è sviluppato tenendo in considerazione che non è possibile effettuare dei "passi indietro",
 ovvero, una volta inserito un ordine in pianificazione tale ordine rimane fino alla fine dell'esecuzione. I parametri in ingresso di tale algoritmo sono i seguenti:
 \begin{itemize}
     \item ordini da pianificare;
@@ -109,8 +109,8 @@ soluzione iniziale nel modo più rapido possibile, in modo da ottenere una base 
 
 \textbf{Tabu Search}
 
-Una volta ottenuta la prima soluzione ammissibile, fornita dall'algoritmo Greedy, l'esecuzione si sposta sulla sua ottimizzazione tramite la Tabu Search \hyperref[tabu]{[18]}.
-Questa particolare tecnica meta-euristica ha lo scopo di fornire una soluzione\hyperref[scheduling]{[20]}, più vicina all'ottimo, tramite l'esecuzione di mosse che perturbano
+Una volta ottenuta la prima soluzione ammissibile, fornita dall'algoritmo Greedy, l'esecuzione si sposta sulla sua ottimizzazione tramite la Tabu Search \hyperref[tabu]{[17]}.
+Questa particolare tecnica meta-euristica ha lo scopo di fornire una soluzione\hyperref[scheduling]{[18]}, più vicina all'ottimo, tramite l'esecuzione di mosse che perturbano
 la soluzione corrente alla ricerca iterativa di soluzioni sempre migliori. L'esecuzione di queste mosse in modo casuale porta ogni volta ad una nuova soluzione ammissibile, tale risultato viene poi confrontato con la soluzione
 precedente, se il risultato è migliorativo allora verrà considerato come nuova miglior soluzione e si utilizzerà per la successiva iterazione, altrimenti tale risultato 
 verrà semplicemente scartato e si prosegue con l'esecuzione della mossa successiva. Di seguito è presentato l'ordine di funzionamento di tale algoritmo:
@@ -124,7 +124,7 @@ verrà semplicemente scartato e si prosegue con l'esecuzione della mossa success
         \item mossa sposta sequenza; 
         \item mossa scambia sequenza.  
     \end{itemize}
-    \item validazione della mossa scelta, tramite l'utilizzo della \hyperref[Tabu List]{Tabu List\glo} \hyperref[list]{[21]};
+    \item validazione della mossa scelta, tramite l'utilizzo della \hyperref[Tabu List]{Tabu List\glo} \hyperref[list]{[19]};
     \item esecuzione della mossa scelta;
     \item valutazione della nuova soluzione in rapporto con la soluzione precedente;
     \item viene ripetuta l'esecuzione nell'ordine sopracitato fino al termine del numero massimo di iterazioni, del tempo imposto o del soddisfacimento di uno dei criteri di
@@ -193,11 +193,11 @@ numero di pezzi prodotti è superiore, allora se la differenza è inferiore al 2
 
 \subsection{Codifica}
 
-In questa sezione vengono illustrati i vari passi che seguiti durante la fase di codifica del progetto, specificando i punti fondamentali di ognuno.\\
+In questa sezione vengono illustrati i vari passi seguiti durante la fase di codifica del progetto, specificando i punti fondamentali di ognuno.\\
 
 \title{Implementazione controllo giacenze}
 
-Il primo obiettivo che da raggiungere riguardava l'esecuzione della pianificazione in base alle materie prime e semilavorati presenti in magazzino.
+Il primo obiettivo da raggiungere riguardava l'esecuzione della pianificazione in base alle materie prime e semilavorati presenti in magazzino.
 Per fare ciò, sono stati eseguiti i passi presentati di seguito:\\ \\
 \textbf{Controllo giacenze}
 \begin{enumerate}
@@ -258,9 +258,9 @@ per garantire la produzione di \textit{I42} e \textit{I43} il mercoledì.
         \item utilizzo di tutti i vincoli precedenti per effettuare la pianificazione.\\
 \end{enumerate}
 
-\textbf{Criteri di Diversificazione/Intensificazione}\\ \\
+\textbf{Criteri di Diversificazione/Intensificazione}\\ 
 
-Per ottenere il massimo dall'esecuzione dell'algoritmo di Tabu Search, si è infine scelto di utilizzare una tecnica di diversificazione come spiegato nella sezione precedente \hyperref[criteria]{[22]}.
+Per ottenere il massimo dall'esecuzione dell'algoritmo di Tabu Search, si è infine scelto di utilizzare una tecnica di diversificazione come spiegato nella sezione precedente \hyperref[criteria]{[20]}.
 
 \newpage
 
@@ -395,12 +395,21 @@ Dalla \hyperref[4.8]{Figura 4.8} si evince la netta incapacità della Tabu Searc
 Questo avviene perché, in questo caso particolare, molti ordini sarebbero pianificabili per quanto riguarda i materiali a disposizione (cosa non realizzabile per le fasi
 precedenti) e questo va a diminuire nettamente il risultato del rapporto pesato \[\frac{\text{Pezzi pianificati}}{\text{Totale pezzi richiesti}} \times \text{Peso del rapporto pezzi}\]\\
 dove in \textit{Totale pezzi richiesti} vengono considerati tutti gli ordini producibili.\\ Inoltre, avendo un grandissimo numero di ordini producibili, le mosse eseguite 
-dalla Tabu Search non fanno altro che sostituire ordini con altri ordini quindi non può ottenere un miglioramento significativo.
+dalla Tabu Search non fanno altro che sostituire ordini con altri ordini quindi non può ottenere un miglioramento significativo. Viene presentato in \hyperref[4.9]{Figura 4.9} 
+il riassunto dei risultati ottenuti riguardanti il miglioramento percentuale delle soluzioni in ogni fase del progetto. La linea blu rappresenta la pianificazione dei prodotti finiti,
+ la linea rossa la pianificazione dei semilavorati e infine la linea verde la pianificazione tenendo conto degli ordini fornitori. 
+
+\begin{figure}[H]
+	\includegraphics[width=13cm]{immagini/graficofi.png}
+	\centering
+    \caption{Grafico miglioramento percentuale della soluzione della pianificazione nelle varie fasi del progetto di stage}
+    \label{4.9}
+\end{figure}
 
 \newpage
 \subsection{Criteri di diversificazione}
 
-L'implementazione della tecnica di diversificazione ha portato ai risultai presenti in figura 4.9, dove la linea blu rappresenta la soluzione ottenuta senza i criteri di diversificazione
+L'implementazione della tecnica di diversificazione ha portato ai risultai presenti in \hyperref[4.10]{Figura 4.10}, dove la linea blu rappresenta la soluzione ottenuta senza i criteri di diversificazione
 mentre, la linea rossa rappresenta la soluzione con l'applicazione dei criteri di diversificazione. I dati su cui sono stati eseguiti i seguenti test sono differenti rispetto ai
 precedenti, questo perché, verso la fine dello stage, i dati forniti dall'azienda sono cambiati. Inoltre non era necessario valutare direttamente i dati precedenti ma ottenere
 una stima del miglioramento basata sullo stesso set di ordini.
@@ -409,10 +418,10 @@ una stima del miglioramento basata sullo stesso set di ordini.
 	\includegraphics[width=13cm]{immagini/diversificazione.png}
 	\centering
     \caption{Grafico miglioramento percentuale della soluzione della pianificazione con l'applicazione di criteri di diversificazione}
-    \label{4.9}
+    \label{4.10}
 \end{figure}
 
-Come possiamo notare dalla \hyperref[4.9]{Figura 4.9}, vi è un miglioramento del 20\% circa della soluzione in ogni stato di esecuzione.\\
+Come possiamo notare dalla \hyperref[4.10]{Figura 4.10}, vi è un miglioramento del 20\% circa della soluzione in ogni stato di esecuzione.\\
 Questo evidenzia l'efficacia dei criteri di diversificazione utilizzati.
 Inoltre, esaminando le soluzioni fornite pre e post inserimento dei criteri, si può notare che questi ultimi sono più efficaci se è richiesta la pianificazione di un insieme
 di ordini aventi un elevato numero di pezzi, trascurando la pianificazione di molti ordini aventi un quantitativo di pezzi inferiore alla media.\\
