@@ -17,8 +17,8 @@ cui produrre l'articolo. Una sequenza definisce giorno, data di inizio e di fine
 Ogni linea ha solitamente più sequenze, nelle quali è possibile collocare l'articolo. Ogni sequenza può avere dei vincoli di dipendenza con altre sequenze.
 
 
-\subsection{Implementazione}
-Segue la descrizione della struttura, ad alto livello, riguardante le principali meccaniche che rientrano nell'uso dell'applicativo.
+\subsection{Elementi del sistema da ottimizzare}
+Segue la descrizione della struttura, ad alto livello, riguardante le principali meccaniche che definiscono il problema di ottimizzazione e da considerare nello sviluppo dell'applicativo.
 
 \subsubsection{Linee}
 Indica l'insieme delle linee sulle quali è consentita la produzione degli ordini, ogni linea ha relativo costo orario e definisce l'insieme degli articoli che può produrre con annessa velocità di produzione.
@@ -82,11 +82,11 @@ Ogni ordine è così definito:
    
 \end{itemize}
 
-\subsection{Problemi logici da affrontare}
-Di seguito sono presentate le problematiche che l'algoritmo deve affrontare per ottenere una corretta pianificazione della produzione.
+\subsection{Vincoli del problema}
+Di seguito sono presentate i vincoli e le specifiche che un metodo di ottimizzazione per il sistema in esame deve considerare per ottenere una corretta pianificazione della produzione.
 
-\subsubsection{Temporali}
-I problemi riguardanti i tempi di produzione sono legati a:
+\subsubsection{Vincoli temporali}
+I vincoli riguardanti i tempi di produzione sono legati a:
 \begin{itemize}
 	\item \textbf{Data Spedizione}: devono essere rispettate le date di spedizione e di consegna degli articoli da pianificare;
 	\item \textbf{Tempo minimo alla consegna}: devono essere rispettate le date di inizio produzione nel caso di ordini con scadenza a breve termine;
@@ -101,7 +101,7 @@ I problemi riguardanti i tempi di produzione sono legati a:
 	\item \textbf{Sovrapposizione Articoli}: ogni sequenza può contenere un solo articolo senza sovrapporne degli altri nello stesso lasso di tempo.
 \end{itemize}
 
-\subsubsection{Vincoli}
+\subsubsection{Vincoli di produzione}
 I vincoli da rispettare sono:
 \begin{itemize}
 	
@@ -145,7 +145,7 @@ Ciascun caso d'uso sarà quindi rappresentato come descritto di seguito:
 \end{itemize}
 
 Di seguito vengono rappresentate le modifiche apportate al documento esistente\hyperref[analisi-requisiti]{[3]}.
-Si fa riferimento allo standard UML 2.0\hyperref[uml]{[4]} per la rappresentazione dei casi d'uso.
+Si fa riferimento allo standard UML 2.0 \hyperref[uml]{[4]} per la rappresentazione dei casi d'uso.
 
 \subsection*{UC-3 Pianificazione della produzione}
 
@@ -425,7 +425,7 @@ Visual Studio 2010, il cui logo è mostrato in \hyperref[vs-2010]{Figura 3.4}, �
 \begin{figure}[H]
 	\includegraphics[width=9cm]{immagini/microsoft-visual-studio-2010-logo.png}
 	\centering
-	\caption{Logo Visuali Studio 2010\hyperref[vs-logo]{[8]}}
+	\caption{Logo Visuali Studio 2010 \hyperref[vs-logo]{[8]}}
 	\label{vs-2010}
 \end{figure}
 
@@ -443,7 +443,7 @@ In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni 
 \begin{figure}[H]
 	\includegraphics[width=8cm]{immagini/devexpress.png}
 	\centering
-	\caption{Logo DevExpress\hyperref[devlogo]{[10]}}
+	\caption{Logo DevExpress \hyperref[devlogo]{[10]}}
 	\label{dev-exp}
 \end{figure}
 
@@ -460,7 +460,7 @@ all'interscambio di dati fra applicazioni \hyperref[Client/Server]{client/server
 \begin{figure}[H]
 	\includegraphics[width=3cm]{immagini/json.png}
 	\centering
-	\caption{Logo JSON\hyperref[jlogo]{[12]}}
+	\caption{Logo JSON \hyperref[jlogo]{[12]}}
 	\label{js}
 \end{figure}
 
@@ -477,7 +477,7 @@ la manipolazione e l'interrogazione efficiente di database \hyperref[informix]{[
 \begin{figure}[H]
 	\includegraphics[width=7cm]{immagini/Informix.png}
 	\centering
-	\caption{Logo Informix\hyperref[ilogo]{[14]}}
+	\caption{Logo Informix \hyperref[ilogo]{[14]}}
 	\label{ibm}
 \end{figure}
 
