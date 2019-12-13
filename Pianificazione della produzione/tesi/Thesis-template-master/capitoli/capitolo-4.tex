@@ -13,8 +13,8 @@
 Prima di descrivere la varie aggiunte che sono state apportate al software, è necessario fornire un'idea dell'architettura sulla quale il progetto si basa. In questo modo si 
 rendono più chiare molte delle scelte che sono state prese e il perché altre sono state scartate.\\ Di seguito è presentato uno schema ad alto livello di come sono strutturate le
 varie componenti che formano l'intero sistema. Come possiamo notare in \hyperref[4.1]{Figura 4.1}, il progetto segue un flusso pressoché "ciclico", partendo dal recupero dei dati dal
-database e infine fornendo la soluzione. I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione,
-una volta fornita la soluzione essa viene ritradotta in un file JSON il quale viene letto e trasposto nell'interfaccia utente.
+database e infine fornendo la soluzione. I dati estratti dal database vengono convertiti in file JSON il quale verrà letto dall'algoritmo che ha il compito di trovare la soluzione che,
+una volta fornita, viene ritradotta in un file JSON il quale viene letto e trasposto nell'interfaccia utente.
 
 \begin{figure}[H]
 	\includegraphics[width=13cm]{immagini/architettura.png}
@@ -51,7 +51,7 @@ In conclusione, il problema che il progetto si pone di risolvere, consiste nel t
 della pianificazione
 in base ai vincoli imposti.\newline
 
-\textbf{La soluzione}
+\noindent \textbf{La soluzione}
 
 Dovendo appoggiarsi all'algoritmo esistente, non è stato possibile eseguire uno stravolgimento completo del suo funzionamento, anzi si è cercato di inserire le nuove funzionalità
 in modo da integrarle il più possibile, senza effettuare modifiche sostanziali, alla struttura del codice esistente.\\ Per fare ciò, si è fatto ampio uso di nuove funzioni e
@@ -215,8 +215,8 @@ Per fare ciò, sono stati eseguiti i passi presentati di seguito:\\ \\
 \begin{enumerate}
         \item utilizzo di una funzione di esplosione distinta per ottenere la distinta base dei prodotti finiti; 
         \item scrittura dei dati in un file JSON;
-        \item riutilizzo della classe \textit{Ordine} per i semilavorati;
-        \item ampliamento delle funzionalità della classe \textit{Ordine} per tenere traccia dei semilavorati di ogni prodotto finito;
+        \item riutilizzo della classe \texttt{Ordine} per i semilavorati;
+        \item ampliamento delle funzionalità della classe \texttt{Ordine} per tenere traccia dei semilavorati di ogni prodotto finito;
         \item integrazione della pianificazione dei semilavorati nell'algoritmo Greedy, anticipando la loro produzione rispetto al prodotto finito;
         \item inserimento di controlli ausiliari per impedire spostamenti ed eliminazioni durante l'esecuzione dell'algoritmo di Tabu Search.\\
 \end{enumerate}
@@ -254,7 +254,7 @@ per garantire la produzione di \textit{I42} e \textit{I43} il mercoledì.
 \begin{enumerate}
         \item lettura di ordini da inserire in pianificazione direttamente dal magazzino;
         \item scrittura dei dati in un file JSON;
-        \item riutilizzo della classe \textit{Ordine} per gli ordini da magazzino;
+        \item riutilizzo della classe \texttt{Ordine} per gli ordini da magazzino;
         \item utilizzo di tutti i vincoli precedenti per effettuare la pianificazione.\\
 \end{enumerate}
 
@@ -425,4 +425,4 @@ Come possiamo notare dalla \hyperref[4.10]{Figura 4.10}, vi è un miglioramento 
 Questo evidenzia l'efficacia dei criteri di diversificazione utilizzati.
 Inoltre, esaminando le soluzioni fornite pre e post inserimento dei criteri, si può notare che questi ultimi sono più efficaci se è richiesta la pianificazione di un insieme
 di ordini aventi un elevato numero di pezzi, trascurando la pianificazione di molti ordini aventi un quantitativo di pezzi inferiore alla media.\\
-Tali dati verranno presi in considerazione da Ergon Spa per decidere, in base alle esigenze dei clienti, quale delle due politiche di pianificazione adottare.
+Tali dati verranno presi in considerazione da Ergon Informatica per decidere, in base alle esigenze dei clienti, quale delle due politiche di pianificazione adottare.
