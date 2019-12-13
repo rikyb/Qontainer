@@ -396,19 +396,19 @@ Di seguito sono riportate tutte le tecnologie utilizzate durante lo sviluppo del
 Tali scelte sono state imposte da Ergon Informatica in quanto sono gli strumenti che vengono utilizzati dall'azienda per lo sviluppo dei progetti interni.\\
 La scelta è inoltre guidata dal fatto che, per mantenere l'integrazione con le parti già esistenti dell'applicativo e il suo funzionamento tramite il software Ergdis, 
 non è stato possibile spostarsi su nuove tecnologie, magari anche solo a qualche versione successiva di esse.\\
-Ergon Informatica si appoggia a questi strumenti in quanto sono forniti di un ottima documentazione di supporto, hanno un alto tasso di scalabilità 
+Ergon Informatica si appoggia a questi strumenti in quanto sono forniti di un'ottima documentazione di supporto, hanno un alto tasso di scalabilità 
 e forniscono un supporto in tempo reale alla codifica.\\ \\
 
 \textbf{Vb.NET}
 
-Vb.NET, il cui logo è mostrato in \hyperref[net]{Figura 3.3}, è linguaggio di programmazione che deriva da Visual Basic 6,
+Vb.NET, il cui logo è mostrato in \hyperref[net]{Figura 3.3}, è un linguaggio di programmazione che deriva da Visual Basic 6,
  è sviluppato da Microsoft e, al contrario dei precedenti, supporta il paradigma di programmazione
 orientata agli oggetti \hyperref[vbnet]{[5]}.
 
 \begin{figure}[H]
 	\includegraphics[width=5cm]{immagini/vb.png}
 	\centering
-	\caption{Logo Vb.NET\hyperref[vb-logo]{[6]}}
+	\caption{Logo Vb.NET \hyperref[vb-logo]{[6]}}
 	\label{net}
 \end{figure}
 
@@ -447,7 +447,7 @@ In Ergon Informatica è il principale ambiente di sviluppo sia per applicazioni 
 	\label{dev-exp}
 \end{figure}
 
-In particolare nel progetto ci si è appoggiati a questa tecnologia per velocizzare la creazione dell'interfaccia grafica sulla quale si basa il modo di rappresentare la soluzione
+In particolare nel progetto ci si è appoggiati a questa tecnologia per velocizzare la creazione dell'interfaccia grafica sulla quale si basa la rappresentazione della soluzione
 che viene fornita, permettendo una chiara visualizzazione tabellare grazie ad una delle tante \hyperref[Estensioni]{estensioni\glo} utilizzabili. 
 
 \newpage
@@ -465,7 +465,7 @@ all'interscambio di dati fra applicazioni \hyperref[Client/Server]{client/server
 \end{figure}
 
 Serve, in particolare, a fornire una struttura a dati interessati rendendoli interscambiabili tra diverse applicazioni senza che si renda necessaria la codifica e decodifica di quest'ultimi.
-Nel nostro caso si rende utile quando è necessario delegare l'esecuzione di operazioni sui dati prelavati da un terminale con accesso al database verso un terminale esterno.
+Nel nostro caso si rende utile quando è necessario delegare l'esecuzione di operazioni sui dati prelevati da un terminale con accesso al database verso un terminale esterno.
 I dati raccolti dal database venivano trasferiti in un file JSON, il quale veniva inviato al successivo passo di esecuzione dell'algoritmo, al termine di ciò veniva restituita
 la soluzione sempre in formato JSON a chi ne aveva fatto richiesta e di conseguenza visualizzata.\\
 
@@ -483,6 +483,6 @@ la manipolazione e l'interrogazione efficiente di database \hyperref[informix]{[
 
 
 L'Informix server supporta il modello relazionale ad oggetti che permette ad IBM di offrire estensioni che supportano i tipi di dati che non sono una parte dello standard SQL.
-Le estensioni più usate sono quelle riguardanti le serie temporali e spaziale che forniscono entrambe supporto al tipo di dato ed estensioni linguistiche che permettono 
+Le estensioni più usate sono quelle riguardanti le serie temporali e spaziali che forniscono entrambe supporto al tipo di dato ed estensioni linguistiche che permettono 
 interrogazioni per un dominio specifico ad alte prestazioni e archiviazione efficiente per set di dati basati su serie temporali e dati spaziali.
 È il servizio database sul quale fa affidamento l'azienda, essendo IBM uno dei partner principali di Ergon Informatica.
